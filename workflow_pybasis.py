@@ -5,27 +5,37 @@ from basis.io import importmsi, exportmsi
 from basis.preproc import palign, intranorm, internorm, vst, pfilter
 from basis.utils.msmanager import H5BaseMSIWorkflow as h5Base
 from msi_utils import str2bool
+import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("-f", "--dirpath", type=str, required=True, help="Path to folder with imzML files.")
+parser.add_argument("-d", "--dirpath", type=str, required=True, help="Path to folder with imzML files.")
 parser.add_argument("-n", "--name", type=str, required=False, default="basis.h5", help="Name of the pyBASIS file. Default is 'basis.h5'.")
-parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
+parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save pybasis HDF5 output.")
 parser.add_argument("-i", "--instrument", type=str, required=False, choices=["tof", "orbitrap"], default="orbitrap", help="MSI insturment. Default is Orbitrap. Only determines some default parameters and can be used for other instruments as well.")
 
-parser.add_argument("--multisample", type=str2bool, required=True, help="True if multiple samples are processed to include internormalization, False otherwise.")
+parser.add_argument("--multisample", action='store_true', help="Use if multiple samples are processed to include internormalization, False otherwise.")
 
 parser.add_argument("--intranorm_method", type=str, required=False, choices=["mfc", "mean", "median"], default="mfc", help="Method for intra normalization. Default is Median Fold Change.")
 parser.add_argument("--intranorm_offset", type=float, required=False, default=0.0, help="Disregard peak intensity smaller that this value. Default is 0.")
-parser.add_argument("--intranorm_outliers", type=str, required=False, choices=["yes", "no"] default="yes", help="If 'yes' adjust outlying values after range estimation. Default is 'yes'.")
+parser.add_argument("--intranorm_outliers", type=str, required=False, choices=["yes", "no"], default="yes", help="If 'yes' adjust outlying values after range estimation. Default is 'yes'.")
 
 parser.add_argument("--internorm_method", type=str, required=False, choices=["mfc", "mean", "median"], default="mfc", help="Method for intra normalization. Default is Median Fold Change.")
 parser.add_argument("--internorm_offset", type=float, required=False, default=0.0, help="Disregard peak intensity smaller that this value. Default is 0.")
-parser.add_argument("--internorm_outliers", type=str, required=False, choices=["yes", "no"] default="no", help="If 'yes' adjust outlying values after range estimation. Default is 'no'.")
+parser.add_argument("--internorm_outliers", type=str, required=False, choices=["yes", "no"], default="no", help="If 'yes' adjust outlying values after range estimation. Default is 'no'.")
+
+args = parser.parse_args()
 
 datafolder = args.dirpath
+savefolder = args.savepath
+if args.savepath:
+    savefolder = args.savepath
+else:
+    savefolder = datafolder
+
+
 h5name = args.name
-h5name_raw = join(datafolder, h5name.split(".")[0] + "_raw_pybasis." + h5name.split(".")[-1])
-h5name_processed = join(datafolder, h5name.split(".")[0] + "_processed_pybasis." + h5name.split(".")[-1])
+h5name_raw = join(savefolder, h5name.split(".")[0] + "_raw_pybasis." + h5name.split(".")[-1])
+h5name_processed = join(savefolder, h5name.split(".")[0] + "_processed_pybasis." + h5name.split(".")[-1])
 instrument = "orbitrap"
 filetype = "imzML"
 fileext = ".imzML"
@@ -73,7 +83,7 @@ print("\nPeak alignment completed.\n")
 intranorm.do_normalize(h5dbname=h5name_processed, method=intranorm_method, params={"offset": intranorm_offset, "reference": intranorm_reference}, mzrange=[intranorm_min_mz, intranorm_max_mz])
 print("\nIntra data set normalization completed.\n")
 
-if str2bool(multisample):
+if multisample:
     internorm.do_normalize(h5dbname=h5name_processed, method=internorm_method, params={"offset": internorm_offset, "reference": internorm_reference}, mzrange=[internorm_min_mz, internorm_max_mz])
 
 

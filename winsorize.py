@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sys import argv
 import os
+import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to h5 files.")

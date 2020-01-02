@@ -14,9 +14,10 @@ from sklearn.cluster import DBSCAN, KMeans
 from scipy.signal import argrelmin
 import umap
 from unidip import UniDip
-from msi_utils import str2bool, read_h5_files
+from msi_utils import read_h5_files
 from scipy.sparse.csgraph import connected_components
 from sklearn.neighbors import NearestNeighbors
+import argparse
 
 
 class AutomaticDataCleaner:
@@ -27,7 +28,7 @@ class AutomaticDataCleaner:
         self.savepath = savepath
         self.n_neighbors = n_neighbors
         self.radius = radius
-        self.selected_cc = None
+        self.selected_cc = np.array([])
         
     
     def fit(self):
@@ -35,6 +36,7 @@ class AutomaticDataCleaner:
         
 
     def knn(self):
+        matrix_found_flag = None
         nn = NearestNeighbors(n_neighbors=self.n_neighbors, radius=self.radius)
         nn.fit(self.embedding)
 
@@ -44,20 +46,28 @@ class AutomaticDataCleaner:
         c = ["g","m","y","orange","k", "pink", "violet"]
         plt.figure()
         plt.plot(self.embedding[:,0], self.embedding[:,1], "ro")
-        for i in range(np.amax(knn_cc[1])+1):
-            idx = np.where(knn_cc[1]==i)
-            plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
-            plt.savefig(join(self.savepath, self.name+"_embedding_connected_components_knn.png"))
+        nr_components = np.amax(knn_cc[1])
+        if nr_components < len(c):
+            for i in range(nr_components + 1):
+                idx = np.where(knn_cc[1]==i)
+                plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
+                plt.savefig(join(self.savepath, self.name+"_embedding_connected_components_knn.png"))
+            plt.close()
+        plt.close()
 
         rnn = nn.radius_neighbors_graph()
         rnn_cc = connected_components(rnn, directed=False)
         print("Connected Components Radius: " + str(rnn_cc))
         plt.figure()
         plt.plot(self.embedding[:,0], self.embedding[:,1], "ro")
-        for i in range(max(rnn_cc[1])+1):
-            idx = np.where(rnn_cc[1]==i)
-            plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
-            plt.savefig(join(self.savepath, self.name+"_connected_components_radius.png"))
+        nr_components = max(rnn_cc[1])
+        if nr_components < len(c):
+            for i in range(nr_components+1):
+                idx = np.where(rnn_cc[1]==i)
+                plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
+                plt.savefig(join(self.savepath, self.name+"_connected_components_radius.png"))
+            plt.close()
+        plt.close()
 
         # If any cc has only two components, take it.
         # If both have two components check if they are equal, otherwise ...
@@ -66,7 +76,9 @@ class AutomaticDataCleaner:
         
         if knn_cc[0] < 2 and rnn_cc[0] < 2:
             print("No Matrix Found")
+            matrix_found_flag = False
         elif knn_cc[0] == 2 or rnn_cc[0] == 2:
+            matrix_found_flag = True
             if knn_cc[0] == rnn_cc[0]:
                 if (knn_cc[1] == rnn_cc[1]).all():
                     self.selected_cc = knn_cc[1]
@@ -84,6 +96,7 @@ class AutomaticDataCleaner:
                 else:
                     self.selected_cc = rnn_cc[1]
         else:
+            matrix_found_flag = True
             if knn_cc[0] != rnn_cc[0]:
                 if knn_cc[0] < rnn_cc[0]:
                     self.selected_cc = knn_cc[1]
@@ -99,13 +112,20 @@ class AutomaticDataCleaner:
                 self.selected_cc = knn * rnn
 
         print("Connected Components Joint Decision: " + str(self.selected_cc))
-        plt.figure()
-        plt.plot(self.embedding[:,0], self.embedding[:,1], "ro")
-        self.selected_cc = self.selected_cc.astype(int)
-        for i in range(max(self.selected_cc)+1):
-            idx = np.where(self.selected_cc == i)
-            plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
-            plt.savefig(join(self.savepath, self.name+"_connected_components_final.png"))
+        if matrix_found_flag:
+            plt.figure()
+            plt.plot(self.embedding[:,0], self.embedding[:,1], "ro")
+            self.selected_cc = self.selected_cc.astype(int)
+            nr_components = max(self.selected_cc)
+            if nr_components < len(c):
+                for i in range(nr_components+1):
+                    idx = np.where(self.selected_cc == i)
+                    plt.plot(self.embedding[idx,0], self.embedding[idx,1], color=c[i], marker="o")
+                    plt.savefig(join(self.savepath, self.name+"_connected_components_final.png"))
+                    plt.close()
+            else:
+                print("Plot cannot be made, since the actual number of components %i is larger than the number of encoding colors %i."%(nr_components, len(c)))
+            plt.close()
 
     
     def run_clean_remove(self):
@@ -120,27 +140,32 @@ class AutomaticDataCleaner:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to _processed_simplified.h5 file.")
-    parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
-    parser.add_argument("-e", "--embedding", type=str, required=True, help="Path to embedding file (.npy)." default=None)
+    parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to _processed_simplified.h5 file.")
+    parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
+    #parser.add_argument("-e", "--embedding", type=str, required=True, help="Path to embedding file (.npy).", default=None)
     parser.add_argument("--n_neighbors", type=int, required=False, help="Number of neighbors to span a n_neighbors graph on the dimension reduction. Default is 15.", default=15)
     parser.add_argument("--n_radius", type=int, required=False, help="Distance radius to span a n_neighbors graph on the dimension reduction. Default is 10.", default=10)
   
     args = parser.parse_args()
     
-    filepath = args.filepath
+    readpath = args.readpath
     savepath = args.savepath
     n_neighbors = args.n_neighbors
     n_radius = args.n_radius
 
-    h5_files, fnames = read_h5_files(filepath)
-    for idx, h5_file in enumerate(h5_files):
-        if args.embedding:
-            embedding = args.embedding
+    h5_files, fnames, paths = read_h5_files(readpath)
+
+    def set_savepath(path, idx, paths=paths):
+        if path:
+            savepath = path
         else:
-            embedding = np.load(join(dirname(filepath), fnames[idx]+"_embedding.npy"))
+            savepath = paths[idx]
+        return savepath
+
+    for idx, h5_file in enumerate(h5_files):
+        embedding = np.load(join(paths[idx], fnames[idx]+"_embedding.npy"))
         embedding = embedding**2 * np.sign(embedding)
-        cleaner = AutomaticDataCleaner(h5_file, embedding, fnames[idx], savepath, n_neighbors, n_radius)
+        cleaner = AutomaticDataCleaner(h5_file, embedding, fnames[idx], set_savepath(savepath, idx), n_neighbors, n_radius)
         cleaner.fit()
         cleaner.run_clean_remove()
     plt.close("all")

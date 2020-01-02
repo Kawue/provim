@@ -7,6 +7,7 @@ from skimage.measure import label, regionprops
 from sys import argv
 import pandas as pd
 import argparse
+from msi_utils import read_h5_files
 
 class MsiImageWriter:
     def __init__(self, dframe, savepath, scaling="single", cmap=plt.cm.viridis, colorscale_boundary=(0,100)):
@@ -48,7 +49,7 @@ class MsiImageWriter:
                 self.colormap.set_clim(np.percentile(intens, self.colorscale_boundary))
             img = self._create_empty_img(True)
             img[(self.grid_y, self.grid_x)] = self.colormap.to_rgba(np.array(intens))
-            plt.imsave(os.path.join(self.savepath, str(np.round(mz, 3)) + ".png"), img)
+            plt.imsave(os.path.join(self.savepath, "images", str(np.round(mz, 3)) + ".png"), img)
 
     
     def write_msi_clusters(self, labels):
@@ -190,33 +191,49 @@ class MsiImageWriter:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to h5 files.")
-    parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
-    parser.add_argument("-r", "--remove_matrix", type=str, required=True, default= help="Removes matrix fields. Works only if they are spatially separated from the main sample.")
-    parser.add_argument("-c", "--clip", type=str, required=True, help="Adjusts pixel positions in the h5 file to remove as many zero areas as possible, i.e. offsets in all directions will be removed.")
-    parser.add_argument("-mz", "--write_mz", type=str, required=True, help="Save pngs of all m/z values within the h5 file.")
-    parser.add_argument("-hdf", "--write_hdf", type=str, required=True, help="Save the processed h5 file, i.e. save the changes due to --remove_matrix and --clip.")
+    parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
+    parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
+    parser.add_argument("--remove_matrix", required=False, action='store_true', help="Removes matrix fields. Works only if they are spatially separated from the main sample.")
+    parser.add_argument("--clip", required=False, action='store_true', help="Adjusts pixel positions in the h5 file to remove as many zero areas as possible, i.e. offsets in all directions will be removed.")
+    parser.add_argument("--write_mz", required=False, action='store_true', help="Save pngs of all m/z values within the h5 file.")
+    parser.add_argument("--write_hdf", required=False, action='store_true', help="Save the processed h5 file, i.e. save the changes due to --remove_matrix and --clip.")
     args=parser.parse_args()
     
-    filepath = args.filepath
+    readpath = args.readpath
     savepath = args.savepath
-    dframe = pd.read_hdf(filepath)
-    
-    writer = MsiImageWriter(dframe, savepath)
-    
-    if args.remove_matrix:
-        writer.matrix_remover()
-        print("ATTENTION: If there are spatially separated sample areas, they will be removed along with the matrix fields! Only the largest connected measurement area will remain!")
-    
-    if args.clip:
-        writer.image_pruner()
-    
-    if args.write_mz:
-        writer.write_msi_imgs()
+
+    if not (args.remove_matrix or args.clip or args.write_mz or args.write_hdf):
+        raise ValueError("Flag at least one operation to proceed.")
+
+    h5_files, fnames, paths = read_h5_files(args.readpath)
+
+    def set_savepath(path, idx, paths=paths):
+        if path:
+            savepath = path
+        else:
+            savepath = paths[idx]
+        return savepath
+
+    for idx, h5_file in enumerate(h5_files):
+        writer = MsiImageWriter(h5_file, set_savepath(savepath, idx))
         
-    if args.write_hdf:
-        try:
-            dframe_savepath = argv[3]
-        except:
-            dframe_savepath = os.path.join(os.path.dirname(argv[1]), "{0}_pruned.{1}".format(*os.path.basename(argv[1]).split(".")))
-        writer.write_dframe(dframe_savepath)
+        if args.remove_matrix:
+            writer.matrix_remover()
+            print("ATTENTION: If there are spatially separated sample areas, they will be removed along with the matrix fields! Only the largest connected measurement area will remain!")
+        
+        if args.clip:
+            writer.image_pruner()
+            if not args.write_hdf:
+                print()
+                print("ATTENTION: --clip is selected but without --write-hdf clipping will not be saved in a file!")
+                print()
+        
+        if args.write_mz:
+            writer.write_msi_imgs()
+            
+        if args.write_hdf:
+            if args.clip:
+                dframe_savepath = os.path.join(set_savepath(savepath, idx), "{0}_pruned{1}".format(fnames[idx], ".h5"))
+            else:
+                raise ValueError("Use --write_hdf only in combination with --clip.")
+            writer.write_dframe(dframe_savepath)

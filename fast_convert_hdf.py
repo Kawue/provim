@@ -6,8 +6,7 @@ from pyimzml.ImzMLWriter import ImzMLWriter
 from os.path import join, basename#, dirname
 import os
 import sys
-import argparse
-from msi_utils import str2bool                                                   
+import argparse                                                
 from basis.utils.msmanager import H5BaseMSIWorkflow as h5Base
 
 class PybasisDataSimplifier:
@@ -15,9 +14,6 @@ class PybasisDataSimplifier:
         self.h5file = h5py.File(filepath, "r")
         #self.savepath = savepath
         self.dset_keys = h5Base.get_dataset_names(filepath)
-        print()
-        print(self.dset_keys)
-        print()
         self.dframes = {}
         for dset_key in self.dset_keys:
             self.dframes[dset_key] = self.create_dframe(dset_key)
@@ -95,14 +91,17 @@ def print_statistics(dframe, name):
 if __name__ == "__main__":
     parser = parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to the processed pyBASIS file.")
-    parser.add_argument("-s", "--savepath", type=str, required=True, help="Folder to save the output files.")
+    parser.add_argument("-s", "--savepath", type=str, required=False, help="Folder to save the output files. (Default equals filepath.)")
     parser.add_argument("-ms", "--mass_range_start", type=float, help="Mass Range Start. Omit to use the whole measure range.")
     parser.add_argument("-me", "--mass_range_end", type=float, help="Mass Range End. Omit to use the whole measure range.")
-    parser.add_argument("--write_merge", type=str2bool, help="Writes an additional HDF5, imzML and ibd file that merges all selected data sets. Default is False!")
+    parser.add_argument("--write_merge", action='store_true', help="Writes an additional HDF5, imzML and ibd file that merges all selected data sets.")
     args = parser.parse_args()
     
     filepath = args.filepath
-    savepath = args.savepath
+    try:
+        savepath = args.savepath
+    except:
+        savepath = os.path.dirname(filepath)
 
     try:
        mz_limits = (float(args.mass_range_start), float(args.mass_range_end))
@@ -118,12 +117,12 @@ if __name__ == "__main__":
     Simplifier = PybasisDataSimplifier(filepath)
 
     for key, dframe in Simplifier.dframes.items():
-        print()
-        print(key)
-        print()
         key = key[1:]
         if mz_limits is not None:
             dframe = Simplifier.cut_dframe(dframe, mz_limits)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+        
         Simplifier.write_simplified_h5(dframe, savepath, key)
         Simplifier.write_imzml(dframe, savepath, key)
         print_statistics(dframe, key)

@@ -4,9 +4,9 @@ from sys import argv
 import matplotlib.pyplot as plt
 from matplotlib.widgets import LassoSelector, Button, TextBox
 from matplotlib import path
-from os.path import join, basename
 import os
-import argparse          
+import argparse
+from msi_utils import read_h5_files     
 
 class InteractiveDataCleaner:
     def __init__(self, dframe, embedding, name, savepath):
@@ -15,7 +15,6 @@ class InteractiveDataCleaner:
         self.dframe = dframe
         self.gx = np.array(dframe.index.get_level_values("grid_x").astype(int))
         self.gy = np.array(dframe.index.get_level_values("grid_y").astype(int))
-        self.coords = np.array(list(zip(self.gx, self.gy)))
         self.embedding = embedding
         self.img = np.zeros((np.amax(self.gy)+1, np.amax(self.gx)+1))
         self.ax1_xmin = np.amin(self.embedding[:,0]) - 1
@@ -154,26 +153,25 @@ class InteractiveDataCleaner:
         self.clearframe = self.dframe[self.idx["clean"]]
         self.matrixframe = self.dframe[self.idx["matrix"]]
         self.dframe = self.dframe[self.idx["remain"]]
-        self.clearframe.to_hdf(join(self.savepath, self.name + "_artifacts" + ".h5"), key=self.name + "_artifacts", complib="blosc", complevel=9)
-        self.matrixframe.to_hdf(join(self.savepath, self.name + "_matrix" + ".h5"), key=self.name + "_matrix", complib="blosc", complevel=9)
-        self.dframe.to_hdf(join(self.savepath, self.name + "_cleaned" + ".h5"), key=self.name + "_nomatrix", complib="blosc", complevel=9)
+        self.clearframe.to_hdf(os.path.join(self.savepath, self.name + "_artifacts" + ".h5"), key=self.name + "_artifacts", complib="blosc", complevel=9)
+        self.matrixframe.to_hdf(os.path.join(self.savepath, self.name + "_matrix" + ".h5"), key=self.name + "_matrix", complib="blosc", complevel=9)
+        self.dframe.to_hdf(os.path.join(self.savepath, self.name + "_cleaned" + ".h5"), key=self.name + "_cleaned", complib="blosc", complevel=9)
         self.adjust_variables()
         self.adjust_plots()
-        np.save(join(self.savepath, self.name + "_embedding_cleaned"), self.embedding)
+        np.save(os.path.join(self.savepath, self.name + "_embedding_cleaned"), self.embedding)
 
 
     def set_roiname(self, text):
         self.roiname = text
 
     def export_roi(self, event):
-        np.save(join(self.savepath, self.roiname), self.idx["roi"])
+        np.save(os.path.join(self.savepath, self.roiname), self.idx["roi"])
 
 
     def adjust_variables(self):
         self.embedding = self.embedding[self.idx["remain"]]
         self.gx = self.gx[self.idx["remain"]]
         self.gy = self.gy[self.idx["remain"]]
-        self.coords = np.array(list(zip(self.gx, self.gy)))
         self.img = np.zeros((np.amax(self.gy)+1, np.amax(self.gx)+1))
         self.idx["roi"] = []
         self.idx["clean"]  = []
@@ -201,14 +199,25 @@ class InteractiveDataCleaner:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to _processed_simplified.h5 file.")
-    parser.add_argument("-e", "--embedding", type=str, required=True, help="Path to _embedding.npy file.")
-    parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
+    parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to _processed_simplified.h5 file.")
+    #parser.add_argument("-e", "--embedding", type=str, required=True, help="Path to _embedding.npy file.")
+    parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
     args = parser.parse_args()
     
-    h5_file = pd.read_hdf(args.h5file)
-    embedding = np.load(args.embedding)
-    name = basename(args.h5file).split(".")[0]
+    readpath = args.readpath
     savepath = args.savepath
-    plot = InteractiveDataCleaner(h5_file, embedding, name, savepath)
-    plot.plot()
+
+    h5_files, fnames, paths = read_h5_files(readpath)
+    
+    def set_savepath(path, idx, paths=paths):
+        if path:
+            savepath = path
+        else:
+            savepath = paths[idx]
+        return savepath
+
+    for idx, h5_file in enumerate(h5_files):
+        embedding = np.load(os.path.join(paths[idx], fnames[idx]+"_embedding.npy"))
+        print(fnames[idx])
+        plot = InteractiveDataCleaner(h5_file, embedding, fnames[idx], set_savepath(savepath, idx))
+        plot.plot()

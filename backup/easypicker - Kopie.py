@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks as sp_find_peaks
 from scipy.signal import peak_widths as sp_peak_width
+from peakutils.baseline import baseline, envelope
 import matplotlib.pyplot as plt
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -70,7 +71,7 @@ class Easypicker:
         # roll will result in omitting the first peak
         for pl, pc in zip(lpeaks_idx, self.peaks_idx):
             #isotopes.append(pc)
-            if self.mzs[pl] + iso_range[1] < self.mzs[pc]:
+            if self.mzs[pl] + iso_range < self.mzs[pc]:
                 isotope_list = self._check_isotope_break(isotopes, [])
                 for isotopes in isotope_list:
                     if len(isotope_list) > 1:

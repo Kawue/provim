@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sys import argv
-import matplotlib as mpl
+#import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button, TextBox
 from matplotlib import path
@@ -14,7 +14,7 @@ import argparse
 
 class InteractivePeakPickingThresholder:
     def __init__(self, dframe, winsorize, normalize, name, savepath):
-        mpl.use('TkAgg')
+        #mpl.use('TkAgg')
         self.dframe = dframe
         self.name = name
         self.savepath = savepath
@@ -35,8 +35,7 @@ class InteractivePeakPickingThresholder:
         self.active = True
         self.txtoffset = 0.01
         self.peak_nb = 0
-        self.deiso_range_min = 0.8
-        self.deiso_range_max = 1.2
+        self.deiso_range = 1.2
         self.deiso_nb = 0
         self.Picker = None
 
@@ -57,23 +56,16 @@ class InteractivePeakPickingThresholder:
         self.ax2.set_axis_off()
         self.linetxt = self.ax2.text(0,0,"")
 
-        
+        self.ax3 = plt.axes([0.64, 0.01, 0.1, 0.055])
+        self.exportnamefield = TextBox(self.ax3, "Deiso Range", initial=str(self.deiso_range))
+        self.exportnamefield.on_submit(self.set_deiso_range)
 
-        self.ax3 = plt.axes([0.48, 0.01, 0.1, 0.055])
-        self.ax3.text(-1.3, 0.4, "Deiso Range")
-        self.exportnamefield = TextBox(self.ax3, "Min", initial=str(self.deiso_range_min))
-        self.exportnamefield.on_submit(self.set_deiso_range_min)
-
-        self.ax4 = plt.axes([0.64, 0.01, 0.1, 0.055])
-        self.exportnamefield = TextBox(self.ax4, "Max", initial=str(self.deiso_range_max))
-        self.exportnamefield.on_submit(self.set_deiso_range_max)
-
-        self.ax5 = plt.axes([0.75, 0.01, 0.1, 0.055])
-        self.deisobutton = Button(self.ax5, "Deiso")
+        self.ax4 = plt.axes([0.75, 0.01, 0.1, 0.055])
+        self.deisobutton = Button(self.ax4, "Deiso")
         self.deisobutton.on_clicked(self.deiso)
 
-        self.ax6 = plt.axes([0.86, 0.01, 0.1, 0.055])
-        self.runbutton = Button(self.ax6, "Run")
+        self.ax5 = plt.axes([0.86, 0.01, 0.1, 0.055])
+        self.runbutton = Button(self.ax5, "Run")
         self.runbutton.on_clicked(self.run)
         
         self.peaktxt = self.ax1.text(0, -0.2, "Number of Peaks: %i"%(self.peak_nb))
@@ -120,25 +112,18 @@ class InteractivePeakPickingThresholder:
 
     def deiso(self, event):
         if self.Picker:
-            self.Picker.deisotope((self.deiso_range_min, self.deiso_range_max))
+            self.Picker.deisotope(self.deiso_range)
             self.deiso_mzs = self.Picker.deiso_peaks_mzs
             self.deiso_intens = self.Picker.mean_spec[self.Picker.deiso_peaks_idx]
             self.deiso_nb = len(self.deiso_mzs)
             self.deisotxt.set_text("Number of Deiso:  %i"%(self.deiso_nb))
             self.deisodots = self.ax1.scatter(self.deiso_mzs, self.deiso_intens, s=15, c="orange", zorder=3)
 
-    def set_deiso_range_min(self, text):
+    def set_deiso_range(self, text):
         try:
-            self.deiso_range_min = float(text)
+            self.deiso_range = float(text)
         except:
-            self.exportnamefield.set_val(str(self.deiso_range_min))
-            print("Type number in deisorange!")
-    
-    def set_deiso_range_max(self, text):
-        try:
-            self.deiso_range_max = float(text)
-        except:
-            self.exportnamefield.set_val(str(self.deiso_range_max))
+            self.exportnamefield.set_val(str(self.deiso_range))
             print("Type number in deisorange!")
 
     
@@ -172,6 +157,3 @@ if __name__ == "__main__":
 
     plot = InteractivePeakPickingThresholder(h5_file, winsorize, normalize, name, savepath)
     plot.plot()
-    
-    picked_dframe = plot.Picker.create_dframe(deisotoped=True)
-    picked_dframe.to_hdf(savepath, key=os.path.basename(savepath).split(".")[0], complib="blosc", complevel=9)

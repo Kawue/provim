@@ -5,12 +5,12 @@ from os.path import join, basename, isdir
 import os
 from scipy.stats.mstats import winsorize
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from easypicker import Easypicker
 from msi_image_writer import MsiImageWriter
 from interactive_peak_threshold import InteractivePeakPickingThresholder
-from msi_utils import str2bool, read_h5_files
+from msi_utils import read_h5_files
 import argparse
 
 
@@ -90,20 +90,29 @@ def quality_control_routine(dframe, fname, savepath, Picker):
 
 ########## Begin Workflow ##########
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to h5 files.")
-parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
+parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
+parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
 parser.add_argument("-w", "--winsorize", type=int, required=False, default=5, help="Maximum peak intensity. The w'th highest peak will be used as upper limit. Default is 5.")
-parser.add_argument("-m", "--pickOnMerge", type=str2bool, required=False, default=False, help="True to pick on union of all data sets, False otherwise. Default is False.")
+parser.add_argument("-m", "--pickOnMerge", required=False, action='store_true', help="True to pick on union of all data sets, False otherwise. Default is False.")
 parser.add_argument("-t", "--transformation", type=str, required=False, choices=["sqrt", "log", "none"], default="log", help="Spectrum transformation (sqrt, log, none). Default is log.")
 parser.add_argument("-i", "--interactive", type=bool, required=False, default=False, help="Start interactive tool for treshold adjustment. If True, deisotoping and threshold parameters are ignored and taken from tool settings.")
 parser.add_argument("-d", "--deisotoping", type=float, required=False, default=1.15, help="Dalton range to search for isotopes. Use 0 to deactivate. Default is 1.15.")
-parser.add_argument("-p", "--threshold", type=float, required=True, nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
-parser.add_argument("-q", "--quality_control", required=False, type=str2bool, default=True, help="Saves a mean spectrum plot for quality control purposes. Default is True.")
-
+parser.add_argument("-p", "--threshold", type=float, required=False, default=[0], nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
+parser.add_argument("-q", "--quality_control", required=False, action='store_true', help="Saves a mean spectrum plot for quality control purposes. Default is True.")
 args=parser.parse_args()
 
-h5_files, fnames = read_h5_files(args.filepath)
+readpath = args.readpath
 savepath = args.savepath
+
+h5_files, fnames, paths = read_h5_files(readpath)
+
+def set_savepath(path, idx, paths=paths):
+    if path:
+        savepath = path
+    else:
+        savepath = paths[idx]
+    return savepath
+
 quality_control_flag = args.quality_control
 winsorize = args.winsorize
 
@@ -113,12 +122,18 @@ if pick_on_merged == False:
 
 transform = args.transformation
 
+interactive = args.interactive
+
 iso_range = args.deisotoping
 t = args.threshold
+if len(t) == 0:
+    if not interactive:
+        raise ValueError("If --interactive is disabled thresholds must be provided!")
+
 if len(t) > 1:
     if len(fnames) != len(t):
         raise Exception("For multiple data sets the number of thresholds must be one or match the number of data sets.")
-interactive = args.interactive
+
 
 for i, h5_fileX in enumerate(h5_files):
     for j, h5_fileY  in enumerate(h5_files):
@@ -137,6 +152,10 @@ if pick_on_merged:
             print("It seems like the HDF5 file has only one data set stored.")
     else:
         dframe = merge_dframes(h5_files)
+    if not savepath:
+        savepath = os.path.join(readpath[0], "merged")
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
     pick_deisotope(dframe, t[0], iso_range, winsorize, transform, "merged", savepath, interactive)
 else:
     if len(h5_files) == 1:
@@ -145,9 +164,12 @@ else:
         if len(dframe_ids) > 1:
             for idx, dframe_id in enumerate(dframe_ids):
                 selected_dframe = dframe.loc[dframe.index.get_level_values("dataset") == dframe_id]
-                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, dframe_id, savepath, interactive)
+                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, dframe_id, set_savepath(savepath, idx), interactive)
         else:
-            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames[0], savepath, interactive)
+            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames[0], set_savepath(savepath, idx), interactive)
     else:
         for idx, dframe in enumerate(h5_files):
-            pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames[idx], savepath, interactive)
+            if interactive:
+                pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames[idx], set_savepath(savepath, idx), interactive)
+            else:
+                pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames[idx], set_savepath(savepath, idx), interactive)

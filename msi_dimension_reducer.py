@@ -10,7 +10,7 @@ from collections import OrderedDict
 import os
 import pandas as pd
 from msi_image_writer import MsiImageWriter
-from msi_utils import read_h5_files, str2bool
+from msi_utils import read_h5_files
 import argparse
 
 class DimensionReducer:
@@ -222,20 +222,22 @@ class SpectralEmbedding(DimensionReducer):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to h5 files.")
-    parser.add_argument("-s", "--savepath", type=str, required=True, help="Path to save output.")
-    parser.add_argument("-m", "--method", type=str, required=True, choices=["pca", "nmf", "lda", "tsne", "umap", "ica", "kpca", "lsa", "lle", "mds", "isomap", "spectralembedding"] help="Path to save output.")
+    parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
+    parser.add_argument("-s", "--savepath", type=str, required=False, help="Path to save output.")
+    parser.add_argument("-m", "--method", type=str, required=True, choices=["pca", "nmf", "lda", "tsne", "umap", "ica", "kpca", "lsa", "lle", "mds", "isomap", "spectralembedding"], help="Path to save output.")
     parser.add_argument("-n", "--ncomponents", type=int, required=True, help="Number of dimensions to reduce to.")
-    parser.add_argument("--save_plots", type=str2bool, required=False, default=True, help="Save scatterplots and component images of the dimension reduction. Default True.")
-    parser.add_argument("--misc_keywords", type=str, required=False, default=[] nargs="+", help="Further parameter names. Use ONLY if you know what the code does! Default settings are provided!")
-    parser.add_argument("--misc_params", required=False, default=[] nargs="+", help="Further parameters. Order must match '--misc_keywords'. Use ONLY if you know what the code does! Default settings are provided!")
-    parser.add_argument("--grine_output", type=float, required=False, default=[] nargs="+", help="Provides a dimension reduction output file for GRINE.")
+    parser.add_argument("--merge", required=False, action='store_true', help="Merge all selected data sets before dimension reduction.")
+    parser.add_argument("--save_plots", required=False, action='store_true', help="Save scatterplots and component images of the dimension reduction. Default True.")
+    parser.add_argument("--misc_keywords", type=str, required=False, default=[], nargs="+", help="Further parameter names. Use ONLY if you know what the code does! Default settings are provided!")
+    parser.add_argument("--misc_params", required=False, default=[], nargs="+", help="Further parameters. Order must match '--misc_keywords'. Use ONLY if you know what the code does! Default settings are provided!")
+    parser.add_argument("--grine_output", type=float, required=False, default=[], nargs="+", help="Provides a dimension reduction output file for GRINE.")
     args=parser.parse_args()
 
-    filepath = args.filepath
+    readpath = args.readpath
     savepath = args.savepath
     method = args.method.lower()
     n_components = args.ncomponents
+    save_plots = args.save_plots
     
     def catch(param):
         try:
@@ -243,7 +245,7 @@ if __name__ == "__main__":
         except:
             return param
             
-    misc = {args.misc_keywords[i]: catch(args.misc_params[i]) for i in range(len(args.misc_keywords)}
+    misc = {args.misc_keywords[i]: catch(args.misc_params[i]) for i in range(len(args.misc_keywords))}
 
     scatteralpha = 0.5
     
@@ -262,53 +264,66 @@ if __name__ == "__main__":
         "spectralembedding": SpectralEmbedding
         }
 
-    h5_files, fnames = read_h5_files(filepath)
+    h5_files, fnames, paths = read_h5_files(readpath)
 
-    if len(h5_files) > 1:
-        merged_dframe = pd.DataFrame()
-        for idx, dframe in enumerate(h5_files):
-            merged_dframe = merged_dframe.append(dframe)
-    else:
-        merged_dframe = h5_files[0]
+    def set_savepath(path, idx, paths=paths):
+        if path:
+            savepath = path
+        else:
+            savepath = paths[idx]
+        return savepath
 
     if len(h5_files) > 20:
         print("Currently different colors for up to 20 data sets are supported. If you process more than 20 at a time colors will repeat for different data sets!")
 
-    DR = method_dict[method](merged_dframe.values, n_components, **misc)
-    embeddings = DR.perform()
-    subsavepath = join(savepath, "dimreduce")
-    if not os.path.exists(subsavepath):
-        os.makedirs(subsavepath)
-    np.save(join(subsavepath, method + "_embeddings"), embeddings)
-
-    tab20 = plt.cm.tab20(np.linspace(0, 1, len(h5_files)))
-    dset_names = list(OrderedDict.fromkeys(merged_dframe.index.get_level_values("dataset")))
-    colors_dict = {dset: tab20[idx] for idx, dset in enumerate(dset_names)}
-    dset_colors = [colors_dict[dset] for dset in merged_dframe.index.get_level_values("dataset")]
+    if args.merge:
+        if len(h5_files) > 1:
+            merged_dframe = pd.DataFrame()
+            for idx, dframe in enumerate(h5_files):
+                merged_dframe = merged_dframe.append(dframe)
+            merged_dframe.fillna(0, inplace=True)
+            fnames = ["merge-of-" + "_".join(fnames)]
+            h5_files = [merged_dframe]
+        else:
+            raise ValueError("Only one File was found. No merge possible!")
     
-    if save_plots:
-        for i in range(embeddings.shape[1]):
-            for j in range(i+1, embeddings.shape[1]):
-                subsubsavepath = join(subsavepath, method)
-                if not os.path.isdir(subsubsavepath):
-                    os.makedirs(subsubsavepath)
-                plt.figure(figsize=(16,9))
-                plt.title("%s of %s"%(method.upper(), basename(filepath).split(".")[0]))
-                for idx, dset_name in enumerate(dset_names):
-                    embedding = embeddings[np.where(merged_dframe.index.get_level_values("dataset") == dset_name)]
-                    plt.scatter(embedding[:,i], embedding[:,j], c=[colors_dict[dset_name]], label=dset_name, alpha=scatteralpha)
-                plt.legend()
-                plt.xlabel("Component %i"%(i+1))
-                plt.ylabel("Component %i"%(j+1))
-                plt.savefig(join(subsubsavepath, "C%i-vs-C%i.png"%(i+1,j+1)), bbox_inches="tight")
-                plt.close()
+    for idx, h5_file in enumerate(h5_files):
+        DR = method_dict[method](h5_file.values, n_components, **misc)
+        embeddings = DR.perform()
+        subsavepath = join(set_savepath(savepath, idx), fnames[idx] + "-dimreduce")
+        if not os.path.exists(subsavepath):
+            os.makedirs(subsavepath)
+        np.save(join(subsavepath, method + "_embeddings"), embeddings)
 
-        for idx, dset_name in enumerate(dset_names):
-            dframe = merged_dframe.iloc[merged_dframe.index.get_level_values("dataset") == dset_name]
-            Writer = MsiImageWriter(dframe, join(subsavepath, fnames[idx]))
-            dset_embedding = embeddings[np.where(merged_dframe.index.get_level_values("dataset") == dset_name)]
-            Writer.write_dimvis(dimreduce_transform=dset_embedding, n_components=n_components, rgb_indices=[0,1,2], method_name=method)
-            
-            
-    if args.grine_output:
-        pass
+        tab20 = plt.cm.tab20(np.linspace(0, 1, len(paths)))
+        dset_names = list(OrderedDict.fromkeys(h5_file.index.get_level_values("dataset")))
+        colors_dict = {dset: tab20[ii] for ii, dset in enumerate(dset_names)}
+        dset_colors = [colors_dict[dset] for dset in h5_file.index.get_level_values("dataset")]
+        
+        if save_plots:
+            for i in range(embeddings.shape[1]):
+                for j in range(i+1, embeddings.shape[1]):
+                    subsubsavepath = join(subsavepath, method)
+                    if not os.path.isdir(subsubsavepath):
+                        os.makedirs(subsubsavepath)
+                    plt.figure(figsize=(16,9))
+                    plt.title("%s of %s"%(method.upper(), fnames[idx]))
+                    for _, dset_name in enumerate(dset_names):
+                        embedding = embeddings[np.where(h5_file.index.get_level_values("dataset") == dset_name)]
+                        plt.scatter(embedding[:,i], embedding[:,j], c=[colors_dict[dset_name]], label=dset_name, alpha=scatteralpha)
+                    plt.legend()
+                    plt.xlabel("Component %i"%(i+1))
+                    plt.ylabel("Component %i"%(j+1))
+                    plt.savefig(join(subsubsavepath, "C%i-vs-C%i.png"%(i+1,j+1)), bbox_inches="tight")
+                    plt.close()
+
+        for _, dset_name in enumerate(dset_names):
+            dframe = h5_file.iloc[h5_file.index.get_level_values("dataset") == dset_name]
+            Writer = MsiImageWriter(dframe, join(subsavepath, dset_name))
+            dset_embedding = embeddings[np.where(h5_file.index.get_level_values("dataset") == dset_name)]
+            if n_components > 2:
+                Writer.write_dimvis(dimreduce_transform=dset_embedding, n_components=n_components, rgb_indices=[0,1,2], method_name=method)
+                
+                
+        if args.grine_output:
+            pass
