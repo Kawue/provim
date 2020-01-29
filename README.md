@@ -20,9 +20,13 @@ The general workflow, with necessary and optional scipts indicated is as follows
 While only step one and two are required and the remaining steps can be chained to specific needs, it is recommended to not interchange the order of the scripts and only skip single steps on demand.
 
 The following scripts can also be used stand alone and therefore are easily to combine with other processing pipelines:
+
 a. `workflow_peakpicking.py`
+
 b. `msi_image_writer.py`
+
 c. `msi_dimension_reducer.py`
+
 If the existing file type is imzML instead of HDF5 we refer to https://github.com/Kawue/imzML-to-HDF5.
 
 ## Local Version (without Docker)
