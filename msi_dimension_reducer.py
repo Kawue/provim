@@ -218,8 +218,6 @@ class SpectralEmbedding(DimensionReducer):
         transform = spem.fit_transform(self.data)
         return transform
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
@@ -271,6 +269,8 @@ if __name__ == "__main__":
             savepath = path
         else:
             savepath = paths[idx]
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
         return savepath
 
     if len(h5_files) > 20:

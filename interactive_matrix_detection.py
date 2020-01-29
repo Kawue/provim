@@ -4,12 +4,14 @@ from sys import argv
 import matplotlib.pyplot as plt
 from matplotlib.widgets import LassoSelector, Button, TextBox
 from matplotlib import path
+import matplotlib as mpl
 import os
 import argparse
 from msi_utils import read_h5_files     
 
 class InteractiveDataCleaner:
     def __init__(self, dframe, embedding, name, savepath):
+        mpl.use("TkAgg")
         self.name = name
         self.savepath = savepath
         self.dframe = dframe
@@ -214,6 +216,8 @@ if __name__ == "__main__":
             savepath = path
         else:
             savepath = paths[idx]
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
         return savepath
 
     for idx, h5_file in enumerate(h5_files):

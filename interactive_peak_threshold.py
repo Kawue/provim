@@ -76,8 +76,8 @@ class InteractivePeakPickingThresholder:
         self.runbutton = Button(self.ax6, "Run")
         self.runbutton.on_clicked(self.run)
         
-        self.peaktxt = self.ax1.text(0, -0.2, "Number of Peaks: %i"%(self.peak_nb))
-        self.deisotxt = self.ax1.text(0, -0.26, "Number of Deiso: %i"%(self.deiso_nb))
+        self.peaktxt = self.ax3.text(-3.7, 0.9, "Number of Peaks: %i"%(self.peak_nb))
+        self.deisotxt = self.ax3.text(-3.7, 0.3, "Number of Deiso: %i"%(self.deiso_nb))
       
         def onMouseMove(event):
             if event.inaxes == self.ax1:
@@ -85,7 +85,7 @@ class InteractivePeakPickingThresholder:
                     self.line.remove()
                     self.linetxt.remove()
                     self.line = self.ax1.axhline(y=event.ydata, color="green")
-                    self.linetxt = self.ax2.text(0, event.ydata-self.txtoffset, round(event.ydata,3))
+                    self.linetxt = self.ax2.text(0, event.ydata-self.txtoffset, round(event.ydata,5))
                     event.canvas.draw()
 
         def onMouseClick(event):
@@ -165,6 +165,8 @@ if __name__ == "__main__":
     
     filepath = args.filepath
     savepath = args.savepath
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
     name = os.path.basename(filepath).split(".")[0]
     h5_file = pd.read_hdf(filepath)
     winsorize = args.winsorize

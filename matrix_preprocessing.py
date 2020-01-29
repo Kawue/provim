@@ -22,6 +22,8 @@ if __name__ == "__main__":
             savepath = path
         else:
             savepath = paths[idx]
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
         return savepath
 
     for idx, h5_file in enumerate(h5_files):
@@ -32,6 +34,8 @@ if __name__ == "__main__":
             plt.figure(figsize=(16,9))
             plt.title("Full Spectrum " + fnames[idx])
             plt.plot(h5_file.columns, h5_file.mean(axis=0))
+            if not os.path.exists(os.path.join(set_savepath(savepath, idx), "quality-control")):
+                os.makedirs(os.path.join(set_savepath(savepath, idx), "quality-control"))
             plt.savefig(os.path.join(set_savepath(savepath, idx), "quality-control", "Full Spectrum " + fnames[idx] + ".png"), bbox_inches='tight')
             plt.close()
 

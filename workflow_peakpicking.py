@@ -5,7 +5,6 @@ from os.path import join, basename, isdir
 import os
 from scipy.stats.mstats import winsorize
 import matplotlib
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from easypicker import Easypicker
 from msi_image_writer import MsiImageWriter
@@ -15,60 +14,101 @@ import argparse
 
 
 # Pick peaks, deisotope them and write them as HDF5 file
-def pick_deisotope(dframe, t, iso_range, winsorize, transform, fname, savepath, interactive):
+def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, meanframe=None):
+    def create_dframe_on_merged(dframes, Picker):
+        picked_dframes = []
+        for df in dframes:
+            picked_df = pd.DataFrame([], index=df.index)
+            mz_pairs = zip(Picker.deiso_peaks_dict["left"], Picker.deiso_peaks_dict["right"])
+            for left, right in mz_pairs:
+                interval = Picker.mzs[left:right+1]
+                interval = [i for i in interval if i in df.columns]
+                picked_df[np.median(interval)] = df[interval].sum(axis=1)
+            picked_dframes.append(picked_df)
+        return picked_dframes
+
+    
     if interactive:
         normalize = True
-        PeakPickingThresholder = InteractivePeakPickingThresholder(dframe, winsorize, normalize, fname, savepath)
+        if meanframe is None:
+            PeakPickingThresholder = InteractivePeakPickingThresholder(dframe, winsorize, normalize, fname, savepath)
+        else:
+            PeakPickingThresholder = InteractivePeakPickingThresholder(meanframe, winsorize, normalize, fname, savepath)
         PeakPickingThresholder.plot()
         Picker = PeakPickingThresholder.run(None)
-        picked_dframe = Picker.create_dframe(deisotoped=True)
+        if meanframe is None:
+            picked_dframes = [Picker.create_dframe(deisotoped=True)]
+        else:
+            picked_dframes = create_dframe_on_merged(dframe, Picker)
     else:
-        Picker = Easypicker(dframe, winsorize)
+        if meanframe is None:
+            Picker = Easypicker(dframe, winsorize)
+        else:
+            Picker = Easypicker(meanframe, winsorize)
         Picker.find_peaks(t)
         Picker.deisotope(iso_range)
-        picked_dframe = Picker.create_dframe(deisotoped=True)
-
-    if transform == "sqrt":
-        picked_dframe = picked_dframe.applymap(lambda x: np.sqrt(x) if x > 0 else 0)
-    elif transform == "log":
-        picked_dframe = picked_dframe.applymap(lambda x: np.log(x) if x > 1 else 0)
-    elif transform == "none":
-        pass
-    else:
-        raise ValueError("Bug in transfor argument!")
-    
-    for dset in set(picked_dframe.index.get_level_values("dataset")):
-        subframe = picked_dframe.iloc[picked_dframe.index.get_level_values("dataset") == dset]
-        subframe.to_hdf(join(savepath, dset + "_autopicked.h5"), key=dset+"_autopicked", complib="blosc", complevel=9)
-
-    if len(set(picked_dframe.index.get_level_values("dataset"))) > 1:
-        picked_dframe.to_hdf(join(savepath,"merged_autopicked.h5"), key="merged_autopicked", complib="blosc", complevel=9)
+        if meanframe is None:
+            picked_dframes = [Picker.create_dframe(deisotoped=True)]
+        else:
+            picked_dframes = create_dframe_on_merged(dframe, Picker)
 
 
-    # Hier gut aufgehoben?
-    # Hat den Vorteil, dass Picker verfügbar ist und quality control für jedes dframe angewendet wird, das erzeugt wird.
-    # TODO: Hier könnte noch ein Seiteneffekt mit merged sein ?!
-    if quality_control_flag:
-        quality_control_routine(picked_dframe, fname, savepath, Picker)
+    for idx, picked_dframe in enumerate(picked_dframes):
+        if transform == "sqrt":
+            picked_dframes[idx] = picked_dframe.applymap(lambda x: np.sqrt(x) if x > 0 else 0)
+        elif transform == "log":
+            picked_dframes[idx] = picked_dframe.applymap(lambda x: np.log(x) if x > 1 else 0)
+        elif transform == "nonneg":
+            picked_dframes[idx] = picked_dframe.applymap(lambda x: 0 if x < 0 else x)
+        elif transform == "none":
+            pass
+        else:
+            raise ValueError("Bug in transfor argument!")
+    print(fnames)
+    for idx, picked_dframe in enumerate(picked_dframes):
+        if meanframe is None:
+            wording = "_autopicked"
+            picked_dframe.to_hdf(join(savepath, fname + wording + ".h5"), key=fname+wording, complib="blosc", complevel=9)
+            if quality_control_flag:
+                quality_control_routine(picked_dframe, fname, savepath, Picker)
+        else:
+            wording = "_autopicked_on_merge"
+            picked_dframe.to_hdf(join(savepath, fnames[idx] + wording + ".h5"), key=fnames[idx]+wording, complib="blosc", complevel=9)
+            if quality_control_flag:
+                quality_control_routine(picked_dframe, fnames[idx], savepath, Picker)
+        
 
+        
 
+    # Deprecated
+    #if len(set(picked_dframe.index.get_level_values("dataset"))) > 1:
+    #    picked_dframe.to_hdf(join(savepath,"merged_autopicked.h5"), key="merged_autopicked", complib="blosc", complevel=9)
+
+'''
 def merge_dframes(dframes):
     merged_dframe = pd.DataFrame()
     for idx, dframe in enumerate(dframes):
         #dframe = dframe.assign(dataset=fnames[idx]).set_index("dataset", append=True)
         merged_dframe = merged_dframe.append(dframe)
     return merged_dframe
-
+'''
+def merged_mean(dframes):
+    mzs = sorted(list(set(np.array([dframe.columns.tolist() for dframe in dframes]).flatten())))
+    intensities = []
+    for mz in mzs:
+        intensities.append(np.mean(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
+    return pd.DataFrame([intensities], columns=mzs)
+    
 
 def quality_control_routine(dframe, fname, savepath, Picker):
     # dframe should be picked at this point
     subsavepath = join(savepath, fname)
 
-    for dset in set(dframe.index.get_level_values("dataset")):
-        subframe = dframe.iloc[dframe.index.get_level_values("dataset") == dset]
-        # Write mz images
-        ImageWriter = MsiImageWriter(subframe, join(savepath, "images", dset))
-        ImageWriter.write_msi_imgs()
+    #for dset in set(dframe.index.get_level_values("dataset")):
+    #    subframe = dframe.iloc[dframe.index.get_level_values("dataset") == dset]
+    # Write mz images
+    #    ImageWriter = MsiImageWriter(subframe, join(savepath, "images", dset))
+    #    ImageWriter.write_msi_imgs()
 
     # Plot mean spectrum and picked peaks
     plt.figure(figsize=(16,9))
@@ -93,9 +133,9 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
 parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
 parser.add_argument("-w", "--winsorize", type=int, required=False, default=5, help="Maximum peak intensity. The w'th highest peak will be used as upper limit. Default is 5.")
-parser.add_argument("-m", "--pickOnMerge", required=False, action='store_true', help="True to pick on union of all data sets, False otherwise. Default is False.")
+parser.add_argument("--pick_on_merge", required=False, action='store_true', help="True to pick on union of all data sets, False otherwise. Default is False.")
 parser.add_argument("-t", "--transformation", type=str, required=False, choices=["sqrt", "log", "none"], default="log", help="Spectrum transformation (sqrt, log, none). Default is log.")
-parser.add_argument("-i", "--interactive", type=bool, required=False, default=False, help="Start interactive tool for treshold adjustment. If True, deisotoping and threshold parameters are ignored and taken from tool settings.")
+parser.add_argument("--interactive", required=False, action='store_true', default=False, help="Start interactive tool for treshold adjustment. If True, deisotoping and threshold parameters are ignored and taken from tool settings.")
 parser.add_argument("-d", "--deisotoping", type=float, required=False, default=1.15, help="Dalton range to search for isotopes. Use 0 to deactivate. Default is 1.15.")
 parser.add_argument("-p", "--threshold", type=float, required=False, default=[0], nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
 parser.add_argument("-q", "--quality_control", required=False, action='store_true', help="Saves a mean spectrum plot for quality control purposes. Default is True.")
@@ -111,14 +151,16 @@ def set_savepath(path, idx, paths=paths):
         savepath = path
     else:
         savepath = paths[idx]
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
     return savepath
 
 quality_control_flag = args.quality_control
 winsorize = args.winsorize
 
-pick_on_merged = args.pickOnMerge
+pick_on_merged = args.pick_on_merge
 if pick_on_merged == False:
-    print("pickOnMerge argument is False. If the HDF5 stores more than one data set picking will be done one every single one independent!")
+    print("pick_on_merge argument is False. If the HDF5 stores more than one data set picking will be done one every single one independent!")
 
 transform = args.transformation
 
@@ -135,41 +177,31 @@ if len(t) > 1:
         raise Exception("For multiple data sets the number of thresholds must be one or match the number of data sets.")
 
 
-for i, h5_fileX in enumerate(h5_files):
-    for j, h5_fileY  in enumerate(h5_files):
-        try:
-            if (h5_fileX.columns != h5_fileY.columns).any():
-                print("Unequal mz values in data set pair (%i, %i)"%(i,j))
-                raise ValueError("mz values of datasets are not normalized!")
-        except Exception as e:
-            print("Unequal mz values in data set pair (%i, %i)"%(i,j))
-            raise ValueError(e)
-
 if pick_on_merged:
     if len(h5_files) == 1:
         dframe = h5_files[0]
         if len(set(dframe.index.get_level_values("dataset"))) < 2:
             print("It seems like the HDF5 file has only one data set stored.")
-    else:
-        dframe = merge_dframes(h5_files)
-    if not savepath:
-        savepath = os.path.join(readpath[0], "merged")
-        if not os.path.exists(savepath):
-            os.makedirs(savepath)
-    pick_deisotope(dframe, t[0], iso_range, winsorize, transform, "merged", savepath, interactive)
+        else:
+            dframe_ids = list(set(dframe.index.get_level_values("dataset")))
+            h5_files = [dframe.loc[dframe.index.get_level_values("dataset") == dframe_id] for dframe_id in dframe_ids]
+            fnames = dframe_ids
+    meanframe = merged_mean(h5_files)
+    pick_deisotope(h5_files, t[0], iso_range, winsorize, transform, fnames, "merged", set_savepath(savepath, 0), interactive, meanframe)
 else:
     if len(h5_files) == 1:
         dframe = h5_files[0]
         dframe_ids = list(set(dframe.index.get_level_values("dataset")))
+        fnames = dframe_ids
         if len(dframe_ids) > 1:
             for idx, dframe_id in enumerate(dframe_ids):
                 selected_dframe = dframe.loc[dframe.index.get_level_values("dataset") == dframe_id]
-                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, dframe_id, set_savepath(savepath, idx), interactive)
+                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, fnames[idx], fnames, set_savepath(savepath, idx), interactive)
         else:
-            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames[0], set_savepath(savepath, idx), interactive)
+            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[0], set_savepath(savepath, 0), interactive)
     else:
         for idx, dframe in enumerate(h5_files):
             if interactive:
-                pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames[idx], set_savepath(savepath, idx), interactive)
+                pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive)
             else:
-                pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames[idx], set_savepath(savepath, idx), interactive)
+                pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive)

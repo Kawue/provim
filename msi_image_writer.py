@@ -43,13 +43,15 @@ class MsiImageWriter:
             raise Exception('Scaling has to be "all" or "single"')
 
 
-    def write_msi_imgs(self):
+    def write_msi_imgs(self, fname):
+        if not os.path.exists(os.path.join(self.savepath, fname+"-images")):
+            os.makedirs(os.path.join(self.savepath, fname+"-images"))
         for mz, intens in self.dframe.iteritems():
             if self.scaling == "single":
                 self.colormap.set_clim(np.percentile(intens, self.colorscale_boundary))
             img = self._create_empty_img(True)
             img[(self.grid_y, self.grid_x)] = self.colormap.to_rgba(np.array(intens))
-            plt.imsave(os.path.join(self.savepath, "images", str(np.round(mz, 3)) + ".png"), img)
+            plt.imsave(os.path.join(self.savepath, fname+"-images", str(np.round(mz, 3)) + ".png"), img)
 
     
     def write_msi_clusters(self, labels):
@@ -212,6 +214,8 @@ if __name__ == "__main__":
             savepath = path
         else:
             savepath = paths[idx]
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
         return savepath
 
     for idx, h5_file in enumerate(h5_files):
@@ -229,7 +233,7 @@ if __name__ == "__main__":
                 print()
         
         if args.write_mz:
-            writer.write_msi_imgs()
+            writer.write_msi_imgs(fnames[idx])
             
         if args.write_hdf:
             if args.clip:

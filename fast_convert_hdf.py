@@ -98,10 +98,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     filepath = args.filepath
-    try:
+    
+    if args.savepath is not None:
         savepath = args.savepath
-    except:
+    else:
         savepath = os.path.dirname(filepath)
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
 
     try:
        mz_limits = (float(args.mass_range_start), float(args.mass_range_end))

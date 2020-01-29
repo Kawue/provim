@@ -36,6 +36,8 @@ if __name__ == "__main__":
             savepath = path
         else:
             savepath = paths[idx]
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
         return savepath
     
     for idx, h5_file in enumerate(h5_files):

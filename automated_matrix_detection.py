@@ -13,7 +13,7 @@ from scipy.stats import norm
 from sklearn.cluster import DBSCAN, KMeans
 from scipy.signal import argrelmin
 import umap
-from unidip import UniDip
+#from unidip import UniDip
 from msi_utils import read_h5_files
 from scipy.sparse.csgraph import connected_components
 from sklearn.neighbors import NearestNeighbors
