@@ -61,12 +61,12 @@ class InteractivePeakPickingThresholder:
 
         self.ax3 = plt.axes([0.48, 0.01, 0.1, 0.055])
         self.ax3.text(-1.3, 0.4, "Deiso Range")
-        self.exportnamefield = TextBox(self.ax3, "Min", initial=str(self.deiso_range_min))
-        self.exportnamefield.on_submit(self.set_deiso_range_min)
+        self.minnamefield = TextBox(self.ax3, "Min", initial=str(self.deiso_range_min))
+        self.minnamefield.on_submit(self.set_deiso_range_min)
 
         self.ax4 = plt.axes([0.64, 0.01, 0.1, 0.055])
-        self.exportnamefield = TextBox(self.ax4, "Max", initial=str(self.deiso_range_max))
-        self.exportnamefield.on_submit(self.set_deiso_range_max)
+        self.maxnamefield = TextBox(self.ax4, "Max", initial=str(self.deiso_range_max))
+        self.maxnamefield.on_submit(self.set_deiso_range_max)
 
         self.ax5 = plt.axes([0.75, 0.01, 0.1, 0.055])
         self.deisobutton = Button(self.ax5, "Deiso")
@@ -131,14 +131,14 @@ class InteractivePeakPickingThresholder:
         try:
             self.deiso_range_min = float(text)
         except:
-            self.exportnamefield.set_val(str(self.deiso_range_min))
+            self.minnamefield.set_val(str(self.deiso_range_min))
             print("Type number in deisorange!")
     
     def set_deiso_range_max(self, text):
         try:
             self.deiso_range_max = float(text)
         except:
-            self.exportnamefield.set_val(str(self.deiso_range_max))
+            self.maxnamefield.set_val(str(self.deiso_range_max))
             print("Type number in deisorange!")
 
     

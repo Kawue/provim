@@ -60,121 +60,43 @@ class Easypicker:
 
     
     def deisotope(self, iso_range, max_mode=True, alt_peaks_idx=None):
-        def match_subprocedure(isotope_candidates, max_mode):
-            isotopes_list = self._check_isotope_break(isotope_candidates, [])
-            for isotopes in isotopes_list:
-                try:
-                    if max_mode:
-                        self.deiso_peaks_idx.append(isotopes[np.argmax(self.mean_spec[isotopes])])
-                    else:
-                        self.deiso_peaks_idx.append(isotopes[0])
-                except Exception as e:
-                    print(e)
-
         if alt_peaks_idx is not None:
-                self.peaks_idx = alt_peaks_idx
+            self.peaks_idx = alt_peaks_idx
 
+        # current peak and last peak
         self.deiso_peaks_idx = []
-        remain = self.peaks_idx.copy()
-
-        # Calculate all possible isotope groups
-        while len(remain) > 0:
-            #print()
-            #print()
-            #print()
-            #print()
-            #print()
-            #print(len(remain))
-            superbreak = False
-            isotope_candidates = []
-            to_remove = []
-            # current peak and next peak
-            for i, pc in enumerate(remain[:-1]):
-                isotope_candidates.append(pc)
-                to_remove.append(i)
-                #print("-----")
-                #print(isotope_candidates)
-                #print(remain)
-                #print("pc - i: %f - %i"%(self.mzs[pc], i))
-                #print("-----")
-
-                #das funktioniert nur einmal, bei i=1 und j=3 ist die distanz schon erreicht weil i=2 verglichen werden müsste, sofern self.mzs[pn] > self.mzs[pc] + iso_range[0] erfüllt ist
-
-                for j, pn in enumerate(remain[i+1:], start=i+1):
-                    # min dist check
-                    if self.mzs[pn] > self.mzs[pc] + iso_range[0]:
-                        # max dist check
-                        #print("+++++")
-                        #print(isotope_candidates)
-                        #print(remain)
-                        #print("pc - i: %f - %i"%(self.mzs[pc], i))
-                        #print("min-result: %f"%(self.mzs[pc]+iso_range[0]))
-                        #print("pn - j: %f - %i"%(self.mzs[pn], j))
-                        #print("max-result: %f"%(self.mzs[pc]+iso_range[1]))
-                        #print("+++++")
-                        if self.mzs[pn] < self.mzs[pc] + iso_range[1]:
-                            isotope_candidates.append(pn)
-                            to_remove.append(j)
-                            pc = pn
+        lpeaks_idx = np.roll(self.peaks_idx, 1)
+        isotopes = []
+        # roll will result in omitting the first peak
+        for pl, pc in zip(lpeaks_idx, self.peaks_idx):
+            #isotopes.append(pc)
+            if self.mzs[pl] + iso_range[1] < self.mzs[pc]:
+                isotope_list = self._check_isotope_break(isotopes, [])
+                for isotopes in isotope_list:
+                    if len(isotope_list) > 1:
+                        plt.plot(self.mzs[isotopes[-1]], 0.2, "y*")
+                    try:
+                        if max_mode:
+                            self.deiso_peaks_idx.append(isotopes[np.argmax(self.mean_spec[isotopes])])
                         else:
-                            #print("Too LARGE!")
-                            match_subprocedure(isotope_candidates, max_mode)
-                            remain = np.delete(remain, to_remove)
-                            superbreak = True
-                            break
-                    else:
-                        #print("*****")
-                        #print("Too SMALL!")
-                        #print(isotope_candidates)
-                        #print(remain)
-                        #print(len(remain))
-                        #print("pc - i: %f - %i"%(self.mzs[pc], i))
-                        #print("min-result: %f"%(self.mzs[pc]+iso_range[0]))
-                        #print("pn - j: %f - %i"%(self.mzs[pn], j))
-                        #print("*****")
-                        # Append last peak of non isotope series
-                        if j == len(remain[i+1:]):
-                            #print("Last index j!")
-                            #print(to_remove)
-                            #print(remain)
-                            #print(isotope_candidates)
-                            match_subprocedure(isotope_candidates, max_mode)
-                            remain = np.delete(remain, to_remove)
-                            #print(to_remove)
-                            #print(remain)
-                            #print(isotope_candidates)
-                            superbreak = True
+                            self.deiso_peaks_idx.append(isotopes[0])
+                        isotopes = [pc]
+                    except Exception as e:
+                        print(e)
+            else:
+                isotopes.append(pc)
+        else:
+            # Adds final mz value
+            isotope_list = self._check_isotope_break(isotopes, [])
+            for isotopes in isotope_list:
+                plt.plot(self.mzs[isotopes[-1]], 0.2, "g*")
+                if max_mode:
+                    self.deiso_peaks_idx.append(isotopes[np.argmax(self.mean_spec[isotopes])])
                 else:
-                    if superbreak:
-                        break
-                    #print("-----")
-                    #print("End of j loop")
-                    #print(isotope_candidates)
-                    #print(remain)
-                    #print("pc - i: %f - %i"%(self.mzs[pc], i))
-                    #print("-----")
-                    match_subprocedure(isotope_candidates, max_mode)
-                    remain = np.delete(remain, to_remove)
-                    superbreak = True
-                
-                if superbreak:
-                        break
-                
-
-            if not superbreak:
-                isotope_candidates.append(remain[0])
-                #print("-----")
-                #print("End of i loop")
-                #print(isotope_candidates)
-                #print(remain)
-                #print("pc - i: %f - %i"%(self.mzs[pc], i))
-                #print("-----")
-                to_remove.append(0)
-                match_subprocedure(isotope_candidates, max_mode)
-                remain = np.delete(remain, to_remove)
-
-        self.deiso_peaks_idx.sort()
+                    self.deiso_peaks_idx.append(isotopes[0])
+        
         self.deiso_peaks_mzs = self.mzs[self.deiso_peaks_idx]
+        
         self.deiso_peaks_dict = {}
         peak_width, rel_height, left_end, right_end = sp_peak_width(self.mean_spec, self.deiso_peaks_idx)
         left_end = np.ceil(left_end).astype(int)
@@ -183,6 +105,8 @@ class Easypicker:
         self.deiso_peaks_dict["rel_height"] = rel_height
         self.deiso_peaks_dict["left"] = left_end
         self.deiso_peaks_dict["right"] = right_end
+        
+        #return self.mzs[self.deiso_peaks_idx], self.deiso_peaks_idx
 
     
     def create_dframe(self, deisotoped, apex_mode=False):
@@ -219,16 +143,12 @@ class Easypicker:
         try:
             # Find the first local minimum after the first local maximum
             break_idx = np.where(k < 0)[0][0] + local_max_idx + 1
-            #print("~~~~~")
-            #print("Break at: %f - %i"%(self.mzs[isotope_pattern[break_idx]], break_idx))
-            #print("~~~~~")
             # Fix the first isotope series
             isotope_list.append(isotope_pattern[:break_idx])
             # Add the remaining isotopes into recursive break detection
             self._check_isotope_break(isotope_pattern[break_idx:], isotope_list)
             return isotope_list
         except Exception as e:
-            #print("No Break!")
             if isinstance(e, IndexError):
                 isotope_list.append(isotope_pattern)
                 return isotope_list
