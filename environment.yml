@@ -1,4 +1,4 @@
-name: provim2
+name: provim
 channels:
   - conda-forge
   - defaults
