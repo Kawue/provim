@@ -51,7 +51,7 @@ class MsiImageWriter:
                 self.colormap.set_clim(np.percentile(intens, self.colorscale_boundary))
             img = self._create_empty_img(True)
             img[(self.grid_y, self.grid_x)] = self.colormap.to_rgba(np.array(intens))
-            plt.imsave(os.path.join(self.savepath, fname+"-images", str(np.round(mz, 3)) + ".png"), img)
+            plt.imsave(os.path.join(self.savepath, fname+"-images", str(np.round(mz, 5)) + ".png"), img)
 
     
     def write_msi_clusters(self, labels):
@@ -65,7 +65,7 @@ class MsiImageWriter:
                     self.colormap.set_clim(np.percentile(intens, self.colorscale_boundary))
                 img = self._create_empty_img(True)
                 img[(self.grid_y, self.grid_x)] = self.colormap.to_rgba(np.array(intens))
-                plt.imsave(os.path.join(clusterpath, str(np.round(mz, 3)) + ".png"), img)
+                plt.imsave(os.path.join(clusterpath, str(np.round(mz, 5)) + ".png"), img)
 
 
     def write_dimvis_rgb(self, red_ch, green_ch, blue_ch, method_name):
