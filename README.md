@@ -32,7 +32,7 @@ If the existing file type is imzML instead of HDF5 we refer to https://github.co
 ## Local Version (without Docker)
 1. Install Anaconda.
 2. Install the environment with the `environment.yml` by calling `conda env create -f environment.yml`.
-3. Activate the environment with `conda active provim` and call `main.py`.
+3. Activate the environment with `conda active provim` and follow the General Workflow.
 4. Call the scripts manually.
 
 ## Docker on Windows 7, 8 and 10 Home
