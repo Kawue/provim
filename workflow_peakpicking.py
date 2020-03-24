@@ -46,7 +46,7 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
         else:
             Picker = Easypicker(meanframe, winsorize)
         Picker.find_peaks(t)
-        Picker.deisotope(iso_range)
+        Picker.deisotope((iso_range[0], iso_range[1]))
         if meanframe is None:
             picked_dframes = [Picker.create_dframe(deisotoped=True)]
         else:
@@ -136,7 +136,7 @@ parser.add_argument("-w", "--winsorize", type=int, required=False, default=5, he
 parser.add_argument("--pick_on_merge", required=False, action='store_true', help="True to pick on union of all data sets, False otherwise. Default is False.")
 parser.add_argument("-t", "--transformation", type=str, required=False, choices=["sqrt", "log", "none"], default="log", help="Spectrum transformation (sqrt, log, none). Default is log.")
 parser.add_argument("--interactive", required=False, action='store_true', default=False, help="Start interactive tool for treshold adjustment. If True, deisotoping and threshold parameters are ignored and taken from tool settings.")
-parser.add_argument("-d", "--deisotoping", type=float, required=False, default=1.15, help="Dalton range to search for isotopes. Use 0 to deactivate. Default is 1.15.")
+parser.add_argument("-d", "--deisotoping", type=float, nargs='+', required=False, default=[0.85, 1.15], help="Dalton range tuple to search for isotopes. Use 0 0 to deactivate. Default is 0.85 1.15.")
 parser.add_argument("-p", "--threshold", type=float, required=False, default=[0], nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
 parser.add_argument("-q", "--quality_control", required=False, action='store_true', help="Saves a mean spectrum plot for quality control purposes. Default is True.")
 args=parser.parse_args()
@@ -167,6 +167,9 @@ transform = args.transformation
 interactive = args.interactive
 
 iso_range = args.deisotoping
+if len(iso_range) != 2:
+    raise ValueError("-d / --deisotoping must be a tuple of two values. First value is min range, second is max range.")
+
 t = args.threshold
 if len(t) == 0:
     if not interactive:
