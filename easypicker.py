@@ -247,3 +247,52 @@ class Easypicker:
             z = spsolve(Z, w*y)
             w = p * (y > z) + (1-p) * (y < z)
         return z
+
+    
+
+    '''
+    def winsorizing(spectrum, isotope_idx_list, divide=5):
+        peaks = self.peaks_dict
+        spectrum_cpy = np.copy(spectrum)
+        if len(self.peaks_idx) == 0:
+            return spectrum_cpy
+        
+        if divide >= len(indices):
+            divide = len(indices) - 1
+
+        indices, widths, lefts, rights = zip(*sorted(zip(self.peaks_idx, peaks["width"], peaks["left"], peaks["right"]),
+                                                        key=lambda x: spectrum[x[0]], reverse=True))
+
+
+        lefts = list(lefts)
+        rights = list(rights)
+        used_isotopes = set()
+        permited_max_value = spectrum[indices[divide]]
+        for i in range(0, divide):
+            if spectrum[indices[i]] in used_isotopes:
+                divide += 1
+                continue
+            found_left = found_right = False
+            for j in self.deiso_peaks_idx:
+                if j[0] <= indices[i] < j[-1]:
+                    lefts[i] = j[0]
+                    rights[i] = j[-1]
+                    used_isotopes.update(spectrum[lefts[i]:rights[i]])
+                    break
+                if j[0] > indices[i]:
+                    break
+            for n, k in enumerate(indices):
+                if k == lefts[i]:
+                    lefts[i] = lefts[n]
+                    found_left = True
+                    if found_left and found_right:
+                        break
+                elif k == rights[i]:
+                    rights[i] = rights[n]
+                    found_right = True
+                    if found_left and found_right:
+                        break
+            shrink_factor = spectrum[indices[i]] / permited_max_value
+            spectrum_cpy[lefts[i]:rights[i]] /= shrink_factor
+        return spectrum_cpy
+    '''
