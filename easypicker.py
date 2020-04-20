@@ -13,6 +13,7 @@ class Easypicker:
         self.winsorize = winsorize
         self.normalize = normalize
         self.mean_spec = np.mean(self.data, axis=0)
+        #self.mean_spec = np.array([np.log(x) if x > 1 else 0 for x in np.mean(self.data, axis=0)])
         if winsorize > 0:
             if type(winsorize) != int:
                 raise ValueError("winsorize has to be of type int!")
