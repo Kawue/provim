@@ -43,4 +43,4 @@ If the existing file type is imzML instead of HDF5 we refer to https://github.co
 5. In your OracleVM VirtualBox selected the appropriate machine (probably the one labeled "default") -> Settings -> Network -> Adapter 1 -> Advanced -> Port Forwarding. Click on "+" to add a new rule and set Host Port to 8080 and Guest Port to 8080. Be sure to leave Host IP and Guest IP empty. Also, add another rule for the Port 5000 in the same way. A restart of your VirtualBox may be needed.
 6. Now you should be ready to use the Docker QuickStart Shell to call the Docker commands provided to start this tool.
 
-Remark: Volume mount paths in the "Docker Quickstart Terminal" need to be in Linux style, i.e. C:\Users becomes /C/Users.
+Remark: Volume mount paths in the "Docker Quickstart Terminal" need to be in Linux style, i.e. C:\Users becomes /c/Users (volume letter becomes lowercase!).
