@@ -69,5 +69,3 @@ dependencies:
   - pip:
     - pyqt5-sip
     - pyqtwebengine
-    - mkl=2019.5
-

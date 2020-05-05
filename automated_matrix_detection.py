@@ -81,35 +81,35 @@ class AutomaticDataCleaner:
             matrix_found_flag = True
             if knn_cc[0] == rnn_cc[0]:
                 if (knn_cc[1] == rnn_cc[1]).all():
-                    self.selected_cc = knn_cc[1]
+                    self.selected_cc = knn_cc[1].astype(bool)
                 else:
                     knn_idx = np.argmin([len(np.where(knn_cc[1] == i)[0]) for i in sorted(list(set(knn_cc[1])))])
                     rnn_idx = np.argmin([len(np.where(rnn_cc[1] == i)[0]) for i in sorted(list(set(rnn_cc[1])))])
 
-                    knn = knn_cc[1] == knn_idx
-                    rnn = rnn_cc[1] == rnn_idx
+                    knn = (knn_cc[1] == knn_idx)
+                    rnn = (rnn_cc[1] == rnn_idx)
 
                     self.selected_cc = knn * rnn
             else:
                 if knn_cc[0] == 2:
-                    self.selected_cc = knn_cc[1]
+                    self.selected_cc = knn_cc[1].astype(bool)
                 else:
-                    self.selected_cc = rnn_cc[1]
+                    self.selected_cc = rnn_cc[1].astype(bool)
         else:
             matrix_found_flag = True
-            if knn_cc[0] != rnn_cc[0]:
-                if knn_cc[0] < rnn_cc[0]:
-                    self.selected_cc = knn_cc[1]
-                else:
-                    self.selected_cc = rnn_cc[1]
-            else:
-                knn_idx = np.argmax([len(np.where(knn_cc[1] == i)[0]) for i in sorted(list(set(knn_cc[1])))])
-                rnn_idx = np.argmax([len(np.where(rnn_cc[1] == i)[0]) for i in sorted(list(set(rnn_cc[1])))])
+            #if knn_cc[0] != rnn_cc[0]:
+            #    if knn_cc[0] < rnn_cc[0]:
+            #        self.selected_cc = knn_cc[1]
+            #    else:
+            #        self.selected_cc = rnn_cc[1]
+            #else:
+            knn_idx = np.argmax([len(np.where(knn_cc[1] == i)[0]) for i in sorted(list(set(knn_cc[1])))])
+            rnn_idx = np.argmax([len(np.where(rnn_cc[1] == i)[0]) for i in sorted(list(set(rnn_cc[1])))])
 
-                knn = knn_cc[1] != knn_idx
-                rnn = rnn_cc[1] != rnn_idx
+            knn = (knn_cc[1] != knn_idx)
+            rnn = (rnn_cc[1] != rnn_idx)
 
-                self.selected_cc = knn * rnn
+            self.selected_cc = knn * rnn
 
         print("Connected Components Joint Decision: " + str(self.selected_cc))
         if matrix_found_flag:
