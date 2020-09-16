@@ -17,13 +17,14 @@ import argparse
 def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, meanframe=None):
     def create_dframe_on_merged(dframes, Picker):
         picked_dframes = []
-        for df in dframes:
+        for idx, df in enumerate(dframes):
             picked_df = pd.DataFrame([], index=df.index)
             mz_pairs = zip(Picker.deiso_peaks_dict["left"], Picker.deiso_peaks_dict["right"])
             for left, right in mz_pairs:
                 interval = Picker.mzs[left:right+1]
                 interval = [i for i in interval if i in df.columns]
                 picked_df[np.median(interval)] = df[interval].sum(axis=1)
+            print(f"Peak Number of Dataset {fnames[idx]} equals {picked_df.shape[1]}")
             picked_dframes.append(picked_df)
         return picked_dframes
 
@@ -64,7 +65,7 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
             pass
         else:
             raise ValueError("Bug in transfor argument!")
-    print(fnames)
+    #print(fnames)
     for idx, picked_dframe in enumerate(picked_dframes):
         if meanframe is None:
             wording = "_autopicked"

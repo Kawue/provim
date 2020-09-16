@@ -22,14 +22,15 @@ class DimensionReducer:
 
 
 class PCA(DimensionReducer):
-    def __init__(self, data, n_components, predict_components=False, whiten=False):
+    def __init__(self, data, n_components, predict_components=False, whiten=False, random_state=0):
         super().__init__(data, n_components)
         self.whiten = whiten
+        self.random_state = random_state
         if predict_components:
             self.n_components = "mle"
 
     def perform(self):
-        pca = skd.PCA(n_components=self.n_components, whiten=self.whiten)
+        pca = skd.PCA(n_components=self.n_components, whiten=self.whiten, random_state=self.random_state)
         transform = pca.fit_transform(self.data)
         return transform
 
@@ -98,8 +99,9 @@ class TSNE(DimensionReducer):
 
 
 class UMAP(DimensionReducer):
-    def __init__(self, data, n_components, metric="euclidean", n_neighbors=15, min_dist=0.1):
+    def __init__(self, data, n_components, metric="euclidean", n_neighbors=15, min_dist=0.1, random_state=0):
         super().__init__(data, n_components)
+        self.random_state = random_state
         if metric not in ["euclidean", "cosine", "correlation", "manhattan", "precomputed"]:
             raise ValueError("metric parameter is restricted to 'euclidean', 'cosine', 'correlation', 'manhattan' or 'precomputed'")
         if metric == "precomputed":
@@ -111,7 +113,7 @@ class UMAP(DimensionReducer):
         self.min_dist = min_dist
 
     def perform(self):
-        umap = uumap.UMAP(n_components=self.n_components, metric=self.metric, n_neighbors=self.n_neighbors, min_dist=self.min_dist)
+        umap = uumap.UMAP(n_components=self.n_components, metric=self.metric, n_neighbors=self.n_neighbors, min_dist=self.min_dist, random_state=self.random_state)
         transform = umap.fit_transform(self.data)
         return transform
 

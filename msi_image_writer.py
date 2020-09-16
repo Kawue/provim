@@ -10,7 +10,7 @@ import argparse
 from msi_utils import read_h5_files
 
 class MsiImageWriter:
-    def __init__(self, dframe, savepath, scaling="single", cmap=plt.cm.viridis, colorscale_boundary=(0,100)):
+    def __init__(self, dframe, savepath, scaling, cmap=plt.cm.viridis, colorscale_boundary=(0,100)):
         self.dframe = dframe
         self.savepath = savepath
 
@@ -51,6 +51,7 @@ class MsiImageWriter:
                 self.colormap.set_clim(np.percentile(intens, self.colorscale_boundary))
             img = self._create_empty_img(True)
             img[(self.grid_y, self.grid_x)] = self.colormap.to_rgba(np.array(intens))
+            #print(np.amax(img[:,:,0]), np.amax(img[:,:,1]), np.amax(img[:,:,2]))
             plt.imsave(os.path.join(self.savepath, fname+"-images", str(np.round(mz, 5)) + ".png"), img)
 
     
@@ -74,9 +75,9 @@ class MsiImageWriter:
         tmp_cm.set_clim(np.percentile(red_ch, self.colorscale_boundary))
         r_intens = tmp_cm.to_rgba(red_ch)[:, 0]
         tmp_cm.set_clim(np.percentile(green_ch, self.colorscale_boundary))
-        g_intens = self.colormap.to_rgba(green_ch)[:, 0]
+        g_intens = self.tmp_cm.to_rgba(green_ch)[:, 0]
         tmp_cm.set_clim(np.percentile(blue_ch, self.colorscale_boundary))
-        b_intens = self.colormap.to_rgba(blue_ch)[:, 0]
+        b_intens = self.tmp_cm.to_rgba(blue_ch)[:, 0]
         
         rgb_img = np.zeros((self.height, self.width, 3))
         rgb_img[(self.grid_y, self.grid_x, 0)] = r_intens
@@ -178,9 +179,9 @@ class MsiImageWriter:
 
     def _create_empty_img(self, rgba):
         if rgba:
-            return np.zeros((self.height + 1, self.width + 1, 4))
+            return np.zeros((self.height, self.width, 4))
         else:
-            return np.zeros((self.height + 1, self.width + 1))
+            return np.zeros((self.height, self.width))
 
 
 
@@ -195,6 +196,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-r", "--readpath", type=str, required=True, nargs='+', help="Path to h5 files.")
     parser.add_argument("-s", "--savepath", type=str, required=False, default=False, help="Path to save output.")
+    parser.add_argument("--scaling", type=str, choices=["single", "all"], required=False, default="single", help="'single' scales each image to min-max independently. 'all' scales each image with a dataset wide min-max.")
     parser.add_argument("--remove_matrix", required=False, action='store_true', help="Removes matrix fields. Works only if they are spatially separated from the main sample.")
     parser.add_argument("--clip", required=False, action='store_true', help="Adjusts pixel positions in the h5 file to remove as many zero areas as possible, i.e. offsets in all directions will be removed.")
     parser.add_argument("--write_mz", required=False, action='store_true', help="Save pngs of all m/z values within the h5 file.")
@@ -219,7 +221,9 @@ if __name__ == "__main__":
         return savepath
 
     for idx, h5_file in enumerate(h5_files):
-        writer = MsiImageWriter(h5_file, set_savepath(savepath, idx))
+        #h5_file = h5_file.applymap(lambda x: np.log(x) if x > 1 else 0)
+        #h5_file = h5_file.applymap(lambda x: np.sqrt(x) if x > 0 else 0)
+        writer = MsiImageWriter(h5_file, set_savepath(savepath, idx), scaling=args.scaling)
         
         if args.remove_matrix:
             writer.matrix_remover()
