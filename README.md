@@ -44,3 +44,7 @@ If the existing file type is imzML instead of HDF5 we refer to https://github.co
 6. Now you should be ready to use the Docker QuickStart Shell to call the Docker commands provided to start this tool.
 
 Remark: Volume mount paths in the "Docker Quickstart Terminal" need to be in Linux style, i.e. C:\Users becomes /c/Users (volume letter becomes lowercase!).
+
+
+## Further Software
+For an early exploration of the HDF converted data sets we suggest du use VAIDRA (https://github.com/Kawue/vaidra) a visual analysis tool to explore data sets using dimension reduction methods.
