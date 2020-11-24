@@ -19,7 +19,7 @@ parser.add_argument("--intranorm_method", type=str, required=False, choices=["mf
 parser.add_argument("--intranorm_offset", type=float, required=False, default=0.0, help="Disregard peak intensity smaller that this value. Default is 0.")
 parser.add_argument("--intranorm_outliers", type=str, required=False, choices=["yes", "no"], default="yes", help="If 'yes' adjust outlying values after range estimation. Default is 'yes'.")
 
-parser.add_argument("--internorm_method", type=str, required=False, choices=["mfc", "mean", "median"], default="mfc", help="Method for intra normalization. Default is Median Fold Change.")
+parser.add_argument("--internorm_method", type=str, required=False, choices=["mfc", "mean", "median"], default="mfc", help="Method for inter normalization. Default is Median Fold Change.")
 parser.add_argument("--internorm_offset", type=float, required=False, default=0.0, help="Disregard peak intensity smaller that this value. Default is 0.")
 parser.add_argument("--internorm_outliers", type=str, required=False, choices=["yes", "no"], default="no", help="If 'yes' adjust outlying values after range estimation. Default is 'no'.")
 

@@ -23,7 +23,8 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
             for left, right in mz_pairs:
                 interval = Picker.mzs[left:right+1]
                 interval = [i for i in interval if i in df.columns]
-                picked_df[np.median(interval)] = df[interval].sum(axis=1)
+                #picked_df[np.median(interval)] = df[interval].sum(axis=1)
+                picked_df[np.median(interval)] = df[interval].max(axis=1)
             print(f"Peak Number of Dataset {fnames[idx]} equals {picked_df.shape[1]}")
             picked_dframes.append(picked_df)
         return picked_dframes
@@ -58,7 +59,7 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
         if transform == "sqrt":
             picked_dframes[idx] = picked_dframe.applymap(lambda x: np.sqrt(x) if x > 0 else 0)
         elif transform == "log":
-            picked_dframes[idx] = picked_dframe.applymap(lambda x: np.log(x) if x > 1 else 0)
+            picked_dframes[idx] = picked_dframe.applymap(lambda x: np.log(x + 1))
         elif transform == "nonneg":
             picked_dframes[idx] = picked_dframe.applymap(lambda x: 0 if x < 0 else x)
         elif transform == "none":
@@ -146,6 +147,13 @@ readpath = args.readpath
 savepath = args.savepath
 
 h5_files, fnames, paths = read_h5_files(readpath)
+
+for i, dframe in enumerate(h5_files):
+    dframe_norm = (dframe - dframe.min().min()) / (dframe.max().max()-dframe.min().min())
+    h5_files[i] = dframe_norm
+
+    #print(dframe_norm.min().min())
+    #print(dframe_norm.max().max()) 
 
 def set_savepath(path, idx, paths=paths):
     if path:
