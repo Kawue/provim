@@ -7,7 +7,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 
 class Easypicker:
-    def __init__(self, dframe, winsorize, normalize=True):
+    def __init__(self, dframe, aggregation, winsorize, normalize=True):
         self.dframe = dframe
         self.data = dframe.values
         self.winsorize = winsorize

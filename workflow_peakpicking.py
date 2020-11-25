@@ -14,7 +14,7 @@ import argparse
 
 
 # Pick peaks, deisotope them and write them as HDF5 file
-def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, meanframe=None):
+def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, aggrframe=None):
     def create_dframe_on_merged(dframes, Picker):
         picked_dframes = []
         for idx, df in enumerate(dframes):
@@ -31,24 +31,24 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
     
     if interactive:
         normalize = True
-        if meanframe is None:
+        if aggrframe is None:
             PeakPickingThresholder = InteractivePeakPickingThresholder(dframe, winsorize, normalize, fname, savepath)
         else:
-            PeakPickingThresholder = InteractivePeakPickingThresholder(meanframe, winsorize, normalize, fname, savepath)
+            PeakPickingThresholder = InteractivePeakPickingThresholder(aggrframe, winsorize, normalize, fname, savepath)
         PeakPickingThresholder.plot()
         Picker = PeakPickingThresholder.run(None)
-        if meanframe is None:
+        if aggrframe is None:
             picked_dframes = [Picker.create_dframe(deisotoped=True)]
         else:
             picked_dframes = create_dframe_on_merged(dframe, Picker)
     else:
-        if meanframe is None:
+        if aggrframe is None:
             Picker = Easypicker(dframe, winsorize)
         else:
-            Picker = Easypicker(meanframe, winsorize)
+            Picker = Easypicker(aggrframe, winsorize)
         Picker.find_peaks(t)
         Picker.deisotope((iso_range[0], iso_range[1]))
-        if meanframe is None:
+        if aggrframe is None:
             picked_dframes = [Picker.create_dframe(deisotoped=True)]
         else:
             picked_dframes = create_dframe_on_merged(dframe, Picker)
@@ -67,7 +67,7 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
             raise ValueError("Bug in transfor argument!")
     #print(fnames)
     for idx, picked_dframe in enumerate(picked_dframes):
-        if meanframe is None:
+        if aggrframe is None:
             wording = "_autopicked"
             picked_dframe.to_hdf(join(savepath, fname + wording + ".h5"), key=fname+wording, complib="blosc", complevel=9)
             if quality_control_flag:
@@ -93,11 +93,16 @@ def merge_dframes(dframes):
         merged_dframe = merged_dframe.append(dframe)
     return merged_dframe
 '''
-def merged_mean(dframes):
+def merged_frame(dframes, aggregation):
     mzs = sorted(list(set(np.array([dframe.columns.tolist() for dframe in dframes]).flatten())))
     intensities = []
     for mz in mzs:
-        intensities.append(np.mean(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
+        if aggregation == "mean":
+            intensities.append(np.mean(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
+        elif aggregation == "max":
+            intensities.append(np.max(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
+        else:
+            raise ValueError("Error with aggregation function.")
     return pd.DataFrame([intensities], columns=mzs)
     
 
@@ -114,18 +119,24 @@ def quality_control_routine(dframe, fname, savepath, Picker):
     # Plot mean spectrum and picked peaks
     plt.figure(figsize=(16,9))
     plt.title(fname)
-    plt.plot(Picker.mzs, Picker.mean_spec, label="Spectrum")
-    plt.plot(Picker.peaks_mzs, Picker.mean_spec[Picker.peaks_idx], "yo", label="Picked")
-    plt.plot(Picker.deiso_peaks_mzs, Picker.mean_spec[Picker.deiso_peaks_idx], "r*", label="Deisotoped")
+    plt.plot(Picker.mzs, Picker.aggr_spec, label="Spectrum")
+    plt.plot(Picker.peaks_mzs, Picker.aggr_spec[Picker.peaks_idx], "yo", label="Picked")
+    plt.plot(Picker.deiso_peaks_mzs, Picker.aggr_spec[Picker.deiso_peaks_idx], "r*", label="Deisotoped")
     plt.hlines(Picker.peaks_dict["rel_height"], Picker.mzs[Picker.peaks_dict["left"]], Picker.mzs[Picker.peaks_dict["right"]])
     plt.legend()
     plt.savefig(subsavepath, bbox_inches='tight')
     plt.close()
 
     # Write csv of picked peaks
-    mean_spectrum = np.mean(dframe, axis=0)
-    mean_spectrum.index = np.round(mean_spectrum.index, 3)
-    mean_spectrum.to_csv(subsavepath + ".csv", sep=",", index_label=["mz"], header = ["intensity"])
+    if aggregation == "mean":
+        aggr_spectrum = np.mean(dframe, axis=0)
+    elif aggregation == "max":
+        aggr_spectrum = np.max(dframe, axis=0)
+    else:
+        raise ValueError("Error with aggregation function.")
+    aggr_spectrum = np.max(dframe, axis=0)
+    aggr_spectrum.index = np.round(aggr_spectrum.index, 3)
+    aggr_spectrum.to_csv(subsavepath + ".csv", sep=",", index_label=["mz"], header = ["intensity"])
 
 
 
@@ -140,10 +151,12 @@ parser.add_argument("--interactive", required=False, action='store_true', defaul
 parser.add_argument("-d", "--deisotoping", type=float, nargs='+', required=False, default=[0.85, 1.15], help="Dalton range tuple to search for isotopes. Use 0 0 to deactivate. Default is 0.85 1.15.")
 parser.add_argument("-p", "--threshold", type=float, required=False, default=[0], nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
 parser.add_argument("-q", "--quality_control", required=False, action='store_true', help="Saves a mean spectrum plot for quality control purposes. Default is True.")
+parser.add_argument("-a", "--aggregation", type=str, choices=["mean", "max"], required=True, help="Pick on mean or max spectrum.")
 args=parser.parse_args()
 
 readpath = args.readpath
 savepath = args.savepath
+aggregation = args.aggregation
 
 h5_files, fnames, paths = read_h5_files(readpath)
 
@@ -190,8 +203,8 @@ if pick_on_merged:
             dframe_ids = list(set(dframe.index.get_level_values("dataset")))
             h5_files = [dframe.loc[dframe.index.get_level_values("dataset") == dframe_id] for dframe_id in dframe_ids]
             fnames = dframe_ids
-    meanframe = merged_mean(h5_files)
-    pick_deisotope(h5_files, t[0], iso_range, winsorize, transform, fnames, "merged", set_savepath(savepath, 0), interactive, meanframe)
+    aggrframe = merged_frame(h5_files, aggregation)
+    pick_deisotope(h5_files, t[0], iso_range, winsorize, transform, fnames, "merged", set_savepath(savepath, 0), interactive, aggrframe)
 else:
     if len(h5_files) == 1:
         dframe = h5_files[0]
