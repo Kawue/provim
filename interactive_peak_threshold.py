@@ -13,7 +13,7 @@ from msi_utils import str2bool
 import argparse
 
 class InteractivePeakPickingThresholder:
-    def __init__(self, dframe, winsorize, normalize, name, savepath):
+    def __init__(self, dframe, aggregation, winsorize, normalize, name, savepath):
         mpl.use('TkAgg')
         self.dframe = dframe
         self.name = name
