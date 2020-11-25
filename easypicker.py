@@ -12,18 +12,26 @@ class Easypicker:
         self.data = dframe.values
         self.winsorize = winsorize
         self.normalize = normalize
-        self.mean_spec = np.mean(self.data, axis=0)
-        #self.mean_spec = np.array([np.log(x) if x > 1 else 0 for x in np.mean(self.data, axis=0)])
+        self.aggregation = aggregation
+        if self.aggregation == "mean":
+            self.aggr_spec = np.mean(self.data, axis=0)
+        elif self.aggregation == "median":
+            self.aggr_spec = np.median(self.data, axis=0)
+        elif self.aggregation == "max":
+            self.aggr_spec = np.max(self.data, axis=0)
+        else:
+            raise ValueError("Parameter Error (aggregation) in Easypicker.")
+        #self.aggr_spec = np.array([np.log(x) if x > 1 else 0 for x in np.mean(self.data, axis=0)])
         if winsorize > 0:
             if type(winsorize) != int:
                 raise ValueError("winsorize has to be of type int!")
-            self.winsorize_limit = sorted(self.mean_spec)[-winsorize]
+            self.winsorize_limit = sorted(self.aggr_spec)[-winsorize]
             print(self.winsorize_limit)
-            self.mean_spec[self.mean_spec > self.winsorize_limit] = self.winsorize_limit
+            self.aggr_spec[self.aggr_spec > self.winsorize_limit] = self.winsorize_limit
         if normalize:
-            mi = self.mean_spec.min()
-            ma = self.mean_spec.max()
-            self.mean_spec = (self.mean_spec - mi) / (ma - mi)
+            mi = self.aggr_spec.min()
+            ma = self.aggr_spec.max()
+            self.aggr_spec = (self.aggr_spec - mi) / (ma - mi)
         #self.median_spec = np.median(self.data, axis=0)
         self.mzs = dframe.columns
         self.peaks_idx = None
@@ -35,20 +43,20 @@ class Easypicker:
     
 
     def find_peaks(self, t, rel_height=0.5):
-        #peaks = detect_peaks(self.mean_spec, mph=mph, threshold=t, edge=edge, kpsh=kpsh, valley=valley)
+        #peaks = detect_peaks(self.aggr_spec, mph=mph, threshold=t, edge=edge, kpsh=kpsh, valley=valley)
         
-        baseline = self._baseline_als(self.mean_spec)
-        corr_spec = self.mean_spec - baseline
+        baseline = self._baseline_als(self.aggr_spec)
+        corr_spec = self.aggr_spec - baseline
         corr_spec[corr_spec<0] = 0
 
-        self.mean_spec = corr_spec
+        self.aggr_spec = corr_spec
 
-        self.peaks_idx, dct = sp_find_peaks(self.mean_spec, height=t)
+        self.peaks_idx, dct = sp_find_peaks(self.aggr_spec, height=t)
         self.peaks_mzs = self.mzs[self.peaks_idx]
         
         # left_end, right_end are index based
         self.peaks_dict = {}
-        peak_width, rel_height, left_end, right_end = sp_peak_width(self.mean_spec, self.peaks_idx, rel_height=rel_height)
+        peak_width, rel_height, left_end, right_end = sp_peak_width(self.aggr_spec, self.peaks_idx, rel_height=rel_height)
         left_end = np.ceil(left_end).astype(int)
         right_end = np.floor(right_end).astype(int)
         self.peaks_dict["width"] = peak_width
@@ -66,7 +74,7 @@ class Easypicker:
             for isotopes in isotopes_list:
                 try:
                     if max_mode:
-                        self.deiso_peaks_idx.append(isotopes[np.argmax(self.mean_spec[isotopes])])
+                        self.deiso_peaks_idx.append(isotopes[np.argmax(self.aggr_spec[isotopes])])
                     else:
                         self.deiso_peaks_idx.append(isotopes[0])
                 except Exception as e:
@@ -177,7 +185,7 @@ class Easypicker:
         self.deiso_peaks_idx.sort()
         self.deiso_peaks_mzs = self.mzs[self.deiso_peaks_idx]
         self.deiso_peaks_dict = {}
-        peak_width, rel_height, left_end, right_end = sp_peak_width(self.mean_spec, self.deiso_peaks_idx)
+        peak_width, rel_height, left_end, right_end = sp_peak_width(self.aggr_spec, self.deiso_peaks_idx)
         left_end = np.ceil(left_end).astype(int)
         right_end = np.floor(right_end).astype(int)
         self.deiso_peaks_dict["width"] = peak_width
@@ -210,8 +218,8 @@ class Easypicker:
 
     def _check_isotope_break(self, isotope_pattern, isotope_list):
         # Roll to divide every value by its successor (instead of for loop)
-        i = self.mean_spec[isotope_pattern]
-        j = self.mean_spec[np.roll(isotope_pattern, -1)]
+        i = self.aggr_spec[isotope_pattern]
+        j = self.aggr_spec[np.roll(isotope_pattern, -1)]
         l = i-j
         # Find the first local maximum (important to avoid problems with "hill structures")
         local_max_idx = np.where(l >= 0)[0][0]

@@ -14,7 +14,7 @@ import argparse
 
 
 # Pick peaks, deisotope them and write them as HDF5 file
-def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, aggrframe=None):
+def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, savepath, interactive, aggregation, aggrframe=None):
     def create_dframe_on_merged(dframes, Picker):
         picked_dframes = []
         for idx, df in enumerate(dframes):
@@ -33,9 +33,9 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
     if interactive:
         normalize = True
         if aggrframe is None:
-            PeakPickingThresholder = InteractivePeakPickingThresholder(dframe, winsorize, normalize, fname, savepath)
+            PeakPickingThresholder = InteractivePeakPickingThresholder(dframe, aggregation, winsorize, normalize, fname, savepath)
         else:
-            PeakPickingThresholder = InteractivePeakPickingThresholder(aggrframe, winsorize, normalize, fname, savepath)
+            PeakPickingThresholder = InteractivePeakPickingThresholder(aggrframe, aggregation, winsorize, normalize, fname, savepath)
         PeakPickingThresholder.plot()
         Picker = PeakPickingThresholder.run(None)
         if aggrframe is None:
@@ -44,9 +44,9 @@ def pick_deisotope(dframe, t, iso_range, winsorize, transform, fnames, fname, sa
             picked_dframes = create_dframe_on_merged(dframe, Picker)
     else:
         if aggrframe is None:
-            Picker = Easypicker(dframe, winsorize)
+            Picker = Easypicker(dframe, aggregation, winsorize)
         else:
-            Picker = Easypicker(aggrframe, winsorize)
+            Picker = Easypicker(aggrframe, aggregation, winsorize)
         Picker.find_peaks(t)
         Picker.deisotope((iso_range[0], iso_range[1]))
         if aggrframe is None:
@@ -100,6 +100,8 @@ def merged_frame(dframes, aggregation):
     for mz in mzs:
         if aggregation == "mean":
             intensities.append(np.mean(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
+        elif aggregation == "median":
+            intensities.append(np.median(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
         elif aggregation == "max":
             intensities.append(np.max(np.concatenate([dframe[mz].values for dframe in dframes if mz in dframe.columns])))
         else:
@@ -131,11 +133,13 @@ def quality_control_routine(dframe, fname, savepath, Picker):
     # Write csv of picked peaks
     if aggregation == "mean":
         aggr_spectrum = np.mean(dframe, axis=0)
+    elif aggregation == "median":
+        aggr_spectrum = np.median(dframe, axis=0)    
     elif aggregation == "max":
         aggr_spectrum = np.max(dframe, axis=0)
     else:
         raise ValueError("Error with aggregation function.")
-    aggr_spectrum = np.max(dframe, axis=0)
+    #aggr_spectrum = np.max(dframe, axis=0)
     aggr_spectrum.index = np.round(aggr_spectrum.index, 3)
     aggr_spectrum.to_csv(subsavepath + ".csv", sep=",", index_label=["mz"], header = ["intensity"])
 
@@ -152,7 +156,7 @@ parser.add_argument("--interactive", required=False, action='store_true', defaul
 parser.add_argument("-d", "--deisotoping", type=float, nargs='+', required=False, default=[0.85, 1.15], help="Dalton range tuple to search for isotopes. Use 0 0 to deactivate. Default is 0.85 1.15.")
 parser.add_argument("-p", "--threshold", type=float, required=False, default=[0], nargs="+", help="Intensity threshold for peak picking. If a folder with multiple data sets is selected either one or as many thresholds as data sets have to be provided.")
 parser.add_argument("-q", "--quality_control", required=False, action='store_true', help="Saves a mean spectrum plot for quality control purposes. Default is True.")
-parser.add_argument("-a", "--aggregation", type=str, choices=["mean", "max"], required=True, help="Pick on mean or max spectrum.")
+parser.add_argument("-a", "--aggregation", type=str, choices=["mean", "median", "max"], required=True, help="Pick on mean or max spectrum.")
 args=parser.parse_args()
 
 readpath = args.readpath
@@ -212,7 +216,7 @@ if pick_on_merged:
             h5_files = [dframe.loc[dframe.index.get_level_values("dataset") == dframe_id] for dframe_id in dframe_ids]
             fnames = dframe_ids
     aggrframe = merged_frame(h5_files, aggregation)
-    pick_deisotope(h5_files, t[0], iso_range, winsorize, transform, fnames, "merged", set_savepath(savepath, 0), interactive, aggrframe)
+    pick_deisotope(h5_files, t[0], iso_range, winsorize, transform, fnames, "merged", set_savepath(savepath, 0), interactive, aggregation, aggrframe)
 else:
     if len(h5_files) == 1:
         dframe = h5_files[0]
@@ -221,12 +225,12 @@ else:
         if len(dframe_ids) > 1:
             for idx, dframe_id in enumerate(dframe_ids):
                 selected_dframe = dframe.loc[dframe.index.get_level_values("dataset") == dframe_id]
-                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, fnames[idx], fnames, set_savepath(savepath, idx), interactive)
+                pick_deisotope(selected_dframe, t[idx], iso_range, winsorize, transform, fnames[idx], fnames, set_savepath(savepath, idx), interactive, aggregation)
         else:
-            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[0], set_savepath(savepath, 0), interactive)
+            pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[0], set_savepath(savepath, 0), interactive, aggregation)
     else:
         for idx, dframe in enumerate(h5_files):
             if interactive:
-                pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive)
+                pick_deisotope(dframe, t[0], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive, aggregation)
             else:
-                pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive)
+                pick_deisotope(dframe, t[idx], iso_range, winsorize, transform, fnames, fnames[idx], set_savepath(savepath, idx), interactive, aggregation)

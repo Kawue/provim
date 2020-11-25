@@ -21,17 +21,25 @@ class InteractivePeakPickingThresholder:
         self.data = dframe.values
         self.winsorize = winsorize
         self.normalize = normalize
-        self.mean_spec = np.mean(self.data, axis=0)
-        #self.mean_spec = np.array([np.log(x) if x > 1 else 0 for x in np.mean(self.data, axis=0)])
+        self.aggregation = aggregation
+        if self.aggregation == "mean":
+            self.aggr_spec = np.mean(self.data, axis=0)
+        elif self.aggregation == "median":
+            self.aggr_spec = np.median(self.data, axis=0)
+        elif self.aggregation == "max":
+            self.aggr_spec = np.max(self.data, axis=0)
+        else:
+            raise ValueError("Parameter Error (aggregation) in InteractivePeakPickingThresholder.")
+        #self.aggr_spec = np.array([np.log(x) if x > 1 else 0 for x in np.mean(self.data, axis=0)])
         if self.winsorize > 0:
             if type(self.winsorize) != int:
                 raise ValueError("winsorize has to be of type int!")
-            self.winsorize_limit = sorted(self.mean_spec)[-self.winsorize]
-            self.mean_spec[self.mean_spec > self.winsorize_limit] = self.winsorize_limit
+            self.winsorize_limit = sorted(self.aggr_spec)[-self.winsorize]
+            self.aggr_spec[self.aggr_spec > self.winsorize_limit] = self.winsorize_limit
         if self.normalize:
-            mi = self.mean_spec.min()
-            ma = self.mean_spec.max()
-            self.mean_spec = (self.mean_spec - mi) / (ma - mi)
+            mi = self.aggr_spec.min()
+            ma = self.aggr_spec.max()
+            self.aggr_spec = (self.aggr_spec - mi) / (ma - mi)
         self.mzs = dframe.columns
         self.active = True
         self.txtoffset = 0.01
@@ -48,7 +56,7 @@ class InteractivePeakPickingThresholder:
         self.ax1.set_title("Mean Spectrum")
         self.ax1.set_xlabel("Mass Channel")
         self.ax1.set_ylabel("Intensity")
-        self.lineplot = self.ax1.plot(self.mzs, self.mean_spec, c="blue", zorder=1)
+        self.lineplot = self.ax1.plot(self.mzs, self.aggr_spec, c="blue", zorder=1)
         self.line = self.ax1.axhline(y=1, color="red", alpha=0)
         self.peakdots = self.ax1.scatter([], [], s=10, c="red", zorder=2)
         self.deisodots = self.ax1.scatter([], [], s=10, c="red", zorder=3)
@@ -112,10 +120,10 @@ class InteractivePeakPickingThresholder:
 
 
     def pick(self, t):
-        self.Picker = Easypicker(self.dframe, self.winsorize)
+        self.Picker = Easypicker(self.dframe, self.aggregation, self.winsorize)
         self.Picker.find_peaks(t)
         self.picked_mzs = self.Picker.peaks_mzs
-        self.picked_intens = self.Picker.mean_spec[self.Picker.peaks_idx]
+        self.picked_intens = self.Picker.aggr_spec[self.Picker.peaks_idx]
         self.peak_nb = len(self.picked_mzs)
         self.deiso_nb = 0
 
@@ -123,7 +131,7 @@ class InteractivePeakPickingThresholder:
         if self.Picker:
             self.Picker.deisotope((self.deiso_range_min, self.deiso_range_max))
             self.deiso_mzs = self.Picker.deiso_peaks_mzs
-            self.deiso_intens = self.Picker.mean_spec[self.Picker.deiso_peaks_idx]
+            self.deiso_intens = self.Picker.aggr_spec[self.Picker.deiso_peaks_idx]
             self.deiso_nb = len(self.deiso_mzs)
             self.deisotxt.set_text("Number of Deiso:  %i"%(self.deiso_nb))
             self.deisodots = self.ax1.scatter(self.deiso_mzs, self.deiso_intens, s=15, c="orange", zorder=3)
