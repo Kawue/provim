@@ -13,7 +13,7 @@ The general workflow, with necessary and optional scipts indicated is as follows
 1. `workflow_pybasis.py` (required)
 2. `fast_convert_hdf.py` (required)
 3. `matrix_preprocessing.py` (optional)
-3.1. `interactive_matrix_detection.py` / `automated_matrix_detection.py` (optional, interactive recommended)
+3.1. `interactive_matrix_detection.py` / `automated_matrix_detection.py` (optional, **the interactive variant is highly recommended!**)
 3.2. `matrix_postprocessing.py` (optional)
 4. `workflow_peakpicking.py` (optional)
 5. `msi_image_writer.py` (optional)
